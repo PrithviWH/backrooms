@@ -1,0 +1,289 @@
+{
+  "ordinary": [
+    {
+      "asset": "SM_Wall_400.SM_Wall_400",
+      "ref": "/Game/Backrooms/Architecture/Walls/SM_Wall_400.SM_Wall_400",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Wall_200.SM_Wall_200",
+      "ref": "/Game/Backrooms/Architecture/Walls/SM_Wall_200.SM_Wall_200",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Wall_End.SM_Wall_End",
+      "ref": "/Game/Backrooms/Architecture/Walls/SM_Wall_End.SM_Wall_End",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Wall_1M.SM_Backrooms_Wall_1M",
+      "ref": "/Game/Backrooms/Architecture/Walls/SM_Backrooms_Wall_1M.SM_Backrooms_Wall_1M",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Wall_Corner.SM_Wall_Corner",
+      "ref": "/Game/Backrooms/Architecture/Walls/SM_Wall_Corner.SM_Wall_Corner",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 2,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Corner_Inner.SM_Backrooms_Corner_Inner",
+      "ref": "/Game/Backrooms/Architecture/Corners/SM_Backrooms_Corner_Inner.SM_Backrooms_Corner_Inner",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 2,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Corner_Outer.SM_Backrooms_Corner_Outer",
+      "ref": "/Game/Backrooms/Architecture/Corners/SM_Backrooms_Corner_Outer.SM_Backrooms_Corner_Outer",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_DoorFrame_100x220.SM_DoorFrame_100x220",
+      "ref": "/Game/Backrooms/Architecture/Doors/SM_DoorFrame_100x220.SM_DoorFrame_100x220",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 4,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Floor_400x400.SM_Floor_400x400",
+      "ref": "/Game/Backrooms/Architecture/Floors/SM_Floor_400x400.SM_Floor_400x400",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Floor_1M.SM_Backrooms_Floor_1M",
+      "ref": "/Game/Backrooms/Architecture/Floors/SM_Backrooms_Floor_1M.SM_Backrooms_Floor_1M",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Ceiling_400x400.SM_Ceiling_400x400",
+      "ref": "/Game/Backrooms/Architecture/Ceilings/SM_Ceiling_400x400.SM_Ceiling_400x400",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Ceiling_Tile_100x100.SM_Ceiling_Tile_100x100",
+      "ref": "/Game/Backrooms/Architecture/Ceilings/SM_Ceiling_Tile_100x100.SM_Ceiling_Tile_100x100",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Ceiling_1M.SM_Backrooms_Ceiling_1M",
+      "ref": "/Game/Backrooms/Architecture/Ceilings/SM_Backrooms_Ceiling_1M.SM_Backrooms_Ceiling_1M",
+      "strategy": "Simple/Convex Collision (CTF_UseDefault)",
+      "convex_hulls": 1,
+      "box_elems": 0,
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    }
+  ],
+  "complex": [
+    {
+      "asset": "SM_Corridor_Corner_400.SM_Corridor_Corner_400",
+      "ref": "/Game/Backrooms/Architecture/Modules/SM_Corridor_Corner_400.SM_Corridor_Corner_400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Corridor_Cross_400.SM_Corridor_Cross_400",
+      "ref": "/Game/Backrooms/Architecture/Modules/SM_Corridor_Cross_400.SM_Corridor_Cross_400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Corridor_Straight_400.SM_Corridor_Straight_400",
+      "ref": "/Game/Backrooms/Architecture/Modules/SM_Corridor_Straight_400.SM_Corridor_Straight_400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Corridor_TJunction_400.SM_Corridor_TJunction_400",
+      "ref": "/Game/Backrooms/Architecture/Modules/SM_Corridor_TJunction_400.SM_Corridor_TJunction_400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Room_400x400.SM_Room_400x400",
+      "ref": "/Game/Backrooms/Architecture/Modules/SM_Room_400x400.SM_Room_400x400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Wall_Doorway_400.SM_Wall_Doorway_400",
+      "ref": "/Game/Backrooms/Architecture/Doors/SM_Wall_Doorway_400.SM_Wall_Doorway_400",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Backrooms_Doorway_1M.SM_Backrooms_Doorway_1M",
+      "ref": "/Game/Backrooms/Architecture/Doorways/SM_Backrooms_Doorway_1M.SM_Backrooms_Doorway_1M",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_ChamferCube.SM_ChamferCube",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_ChamferCube.SM_ChamferCube",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Cube.SM_Cube",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_Cube.SM_Cube",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Cylinder.SM_Cylinder",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_Cylinder.SM_Cylinder",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Plane.SM_Plane",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_Plane.SM_Plane",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_QuarterCylinder.SM_QuarterCylinder",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_QuarterCylinder.SM_QuarterCylinder",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_QuarterCylinderOuter.SM_QuarterCylinderOuter",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_QuarterCylinderOuter.SM_QuarterCylinderOuter",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Ramp.SM_Ramp",
+      "ref": "/Game/LevelPrototyping/Meshes/SM_Ramp.SM_Ramp",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_Door.SM_Door",
+      "ref": "/Game/LevelPrototyping/Interactable/Door/Meshes/SM_Door.SM_Door",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_DoorFrame_Corner.SM_DoorFrame_Corner",
+      "ref": "/Game/LevelPrototyping/Interactable/Door/Meshes/SM_DoorFrame_Corner.SM_DoorFrame_Corner",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    },
+    {
+      "asset": "SM_DoorFrame_Edge.SM_DoorFrame_Edge",
+      "ref": "/Game/LevelPrototyping/Interactable/Door/Meshes/SM_DoorFrame_Edge.SM_DoorFrame_Edge",
+      "strategy": "Complex Collision As Simple (CTF_UseComplexAsSimple)",
+      "trace_flag": "CTF_UseComplexAsSimple",
+      "pre_save_ok": true,
+      "post_save_ok": true,
+      "status": "OK"
+    }
+  ]
+}

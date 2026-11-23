@@ -1,0 +1,33 @@
+# Visual Studio / VS Code / Rider
+.vs/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.opendb
+
+# Unreal Engine generated folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# Plugins generated folders
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Retain MCP configuration files
+!.mcp.json
+!.gemini/
+!.gemini/settings.json
+!.cursor/
+!.cursor/mcp.json
+!.vscode/
+!.vscode/mcp.json
