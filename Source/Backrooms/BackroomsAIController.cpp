@@ -10,6 +10,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
 
 ABackroomsAIController::ABackroomsAIController()
 	: CurrentState(EBackroomsAIState::IdleWander)
@@ -23,6 +24,7 @@ ABackroomsAIController::ABackroomsAIController()
 	, ChaseSound(nullptr)
 	, LastKnownPlayerLocation(FVector::ZeroVector)
 {
+	PrimaryActorTick.bCanEverTick = true;
 	bStartAILogicOnPossess = true;
 	bStopAILogicOnUnposses = true;
 
@@ -72,6 +74,44 @@ void ABackroomsAIController::OnPossess(APawn* InPawn)
 	{
 		MoveToRandomReachablePoint(WanderRadius);
 	}, 1.5f, false);
+}
+
+void ABackroomsAIController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+#if !UE_BUILD_SHIPPING
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		if (UBlackboardComponent* BB = GetBlackboardComponent())
+		{
+			// Read AIState directly from the Blackboard component (justifying BB usage)
+			uint8 StateVal = BB->GetValueAsEnum(TEXT("AIState"));
+			EBackroomsAIState StateFromBB = static_cast<EBackroomsAIState>(StateVal);
+			FString StateStr;
+			FColor StateColor = FColor::Green;
+
+			switch (StateFromBB)
+			{
+			case EBackroomsAIState::IdleWander:
+				StateStr = TEXT("IDLE WANDER (Silent)");
+				StateColor = FColor::Green;
+				break;
+			case EBackroomsAIState::Chase:
+				StateStr = TEXT("CHASE (Loud)");
+				StateColor = FColor::Red;
+				break;
+			case EBackroomsAIState::Search:
+				StateStr = FString::Printf(TEXT("SEARCHING (%.1fs left)"), GetWorld()->GetTimerManager().GetTimerRemaining(LostSightTimerHandle));
+				StateColor = FColor::Yellow;
+				break;
+			}
+
+			FVector TextLocation = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 110.0f);
+			DrawDebugString(GetWorld(), TextLocation, FString::Printf(TEXT("[BB_AIState: %s]"), *StateStr), nullptr, StateColor, 0.0f, false, 1.2f);
+		}
+	}
+#endif
 }
 
 void ABackroomsAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
@@ -141,7 +181,7 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 		SetFocus(TargetPlayer);
 		MoveToActor(TargetPlayer, 80.0f);
 
-		UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Player detected in forward 45 deg cone at %.1f cm! Entering Chase."), FVector::Distance(GetPawn()->GetActorLocation(), Actor->GetActorLocation()));
+		UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Player detected in forward 45 deg cone! Entering Chase."));
 
 		UpdateBlackboardKeys();
 	}

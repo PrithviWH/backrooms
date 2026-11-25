@@ -6,12 +6,10 @@
 #include "Engine/GameInstance.h"
 #include "BackroomsGameInstance.generated.h"
 
-class APlayerController;
-
 /**
  * Custom GameInstance that persists gameplay state (stamina, inventory, level progression)
- * across level transitions (e.g. from L_Backrooms_Main to backroomsLevel2) and provides
- * smooth fade-to-black camera transition helpers.
+ * across level transitions (e.g. from L_Backrooms_Main to backroomsLevel2).
+ * Strictly contains session-lifetime data and persistence helpers.
  */
 UCLASS()
 class BACKROOMS_API UBackroomsGameInstance : public UGameInstance
@@ -52,16 +50,4 @@ public:
 	/** Checks if an item is present in persistent inventory */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Backrooms|Persistence")
 	bool HasInventoryItem(const FString& ItemId) const;
-
-	/** Performs camera fade to black on the player camera manager (holds at black) */
-	UFUNCTION(BlueprintCallable, Category = "Backrooms|Camera")
-	static void FadeCameraToBlack(APlayerController* PlayerController, float Duration = 1.0f);
-
-	/** Performs camera fade from black on the player camera manager */
-	UFUNCTION(BlueprintCallable, Category = "Backrooms|Camera")
-	static void FadeCameraFromBlack(APlayerController* PlayerController, float Duration = 1.0f);
-
-	/** Initiates a level transition with camera fade-to-black before loading */
-	UFUNCTION(BlueprintCallable, Category = "Backrooms|Transition", meta = (WorldContext = "WorldContextObject"))
-	static void TransitionToLevelWithFade(const UObject* WorldContextObject, FName LevelName, float FadeDuration = 1.0f);
 };

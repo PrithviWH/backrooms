@@ -25,6 +25,7 @@ enum class EBackroomsAIState : uint8
  * Authoritative AI Controller for Backrooms Entity / "Stealthy Stalker" AI.
  * Implements narrow-angle stealth detection, silent stalking/wandering, aggressive chasing on sight,
  * and an extended search phase where the entity lingers near the last known player location.
+ * Actively writes and reads BB_BackroomsEntity Blackboard keys for state and debug telemetry.
  */
 UCLASS()
 class BACKROOMS_API ABackroomsAIController : public AAIController
@@ -97,6 +98,8 @@ public:
 	/** Called when the lost-sight search timer expires to resume idle wandering */
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
 	void OnLoseSightTimerExpired();
+
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
