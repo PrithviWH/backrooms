@@ -1,8 +1,15 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{CE5BD604-4953-4A34-A149-37A0D33441D1}",
+	"EngineAssociation": "5.8",
 	"Category": "",
 	"Description": "",
+	"Modules": [
+		{
+			"Name": "Backrooms",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",
