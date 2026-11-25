@@ -31,3 +31,7 @@ Thumbs.db
 !.cursor/mcp.json
 !.vscode/
 !.vscode/mcp.json
+
+# Local user configuration overrides
+Config/User*.ini
+
