@@ -200,6 +200,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void PawnClientRestart() override;
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);

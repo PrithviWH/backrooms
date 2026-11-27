@@ -9,6 +9,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "InputAction.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
@@ -106,6 +107,37 @@ ABackroomsCharacter::ABackroomsCharacter()
 
 	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultStepObj(TEXT("/Game/Backrooms/Audio/Foot-steps/freeeverythingxx-walking-on-concrete-ver-2-268513"));
 	if (DefaultStepObj.Succeeded()) { DefaultFootstepSounds.Add(DefaultStepObj.Object); }
+
+	// Default Enhanced Input assets
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/Input/IMC_Default.IMC_Default"));
+	if (IMCFinder.Succeeded())
+	{
+		DefaultMappingContext = IMCFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionFinder(TEXT("/Game/Input/Actions/IA_Move.IA_Move"));
+	if (MoveActionFinder.Succeeded())
+	{
+		MoveAction = MoveActionFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> LookActionFinder(TEXT("/Game/Input/Actions/IA_Look.IA_Look"));
+	if (LookActionFinder.Succeeded())
+	{
+		LookAction = LookActionFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> JumpActionFinder(TEXT("/Game/Input/Actions/IA_Jump.IA_Jump"));
+	if (JumpActionFinder.Succeeded())
+	{
+		JumpAction = JumpActionFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionFinder(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+	if (SprintActionFinder.Succeeded())
+	{
+		SprintAction = SprintActionFinder.Object;
+	}
 }
 
 void ABackroomsCharacter::BeginPlay()
@@ -117,6 +149,12 @@ void ABackroomsCharacter::BeginPlay()
 	{
 		MouseSensitivity = Settings->MouseSensitivity;
 		bInvertY = Settings->bInvertY;
+	}
+
+	// Fallback load if null
+	if (!DefaultMappingContext)
+	{
+		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
 	}
 
 	// Add Input Mapping Context if player controller is available
@@ -132,9 +170,50 @@ void ABackroomsCharacter::BeginPlay()
 	}
 }
 
+void ABackroomsCharacter::PawnClientRestart()
+{
+	Super::PawnClientRestart();
+
+	// Ensure DefaultMappingContext is valid
+	if (!DefaultMappingContext)
+	{
+		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
+	}
+
+	// Add Input Mapping Context to local player subsystem upon possession/restart
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+		}
+	}
+}
+
 void ABackroomsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	// Fallback load input actions if not set on CDO/instance
+	if (!MoveAction)
+	{
+		MoveAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Move.IA_Move"));
+	}
+	if (!LookAction)
+	{
+		LookAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Look.IA_Look"));
+	}
+	if (!JumpAction)
+	{
+		JumpAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Jump.IA_Jump"));
+	}
+	if (!SprintAction)
+	{
+		SprintAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+	}
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
