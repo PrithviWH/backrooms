@@ -88,6 +88,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Parameters")
 	float WanderSpeed;
 
+	/** Movement speed while searching (deliberate stalking, 240 cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Parameters")
+	float SearchSpeed;
+
 	/** Movement speed while chasing (450 cm/s, slower than player sprint for dread/evasion) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Parameters")
 	float ChaseSpeed;

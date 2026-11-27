@@ -71,7 +71,24 @@ graph TD
 * **HUD Class:** Standard routing ensuring no duplicate legacy game modes spawn unlinked player characters.
 
 ### 2.4 Entity & AI System (`BP_BackroomsEntity` & `BP_BackroomsAIController`)
-* **Entity Pawn:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsEntity`
+* **Entity Pawn:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsEntity` (reparented directly to native C++ `ABackroomsEntity`).
+* **Authoritative C++ Base Class (`ABackroomsEntity`):**
+  * Implements dynamic footstep audio that actively tracks entity movement, AI state, and floor physical material.
+  * Stride accumulation: Distance-based calculation dynamically adjusted per AI state:
+    * *Idle Wander* ($180\text{ cm/s}$): $175\text{ cm}$ stride ($\sim 1.0\text{ s}$ per step), quiet deliberate stalker pace. Volume $0.55$, deep ominous pitch ($0.80$–$0.88$).
+    * *Search* ($240\text{ cm/s}$): $145\text{ cm}$ stride ($\sim 0.6\text{ s}$ per step), tense calculated pacing. Volume $0.72$, pitch $0.78$–$0.85$.
+    * *Chase* ($450\text{ cm/s}$): $125\text{ cm}$ stride ($\sim 0.28\text{ s}$ per step), rapid panic-inducing heavy pursuit. Volume $1.05$, pitch $0.72$–$0.80$, randomly layered with heavy monster stomps (`lordsonny-monster-footstep-162883`, `universfield-heavy-walking-footsteps-352771`).
+  * **Spatialized 3D Sound Attenuation (`EntityFootstepAttenuation`):**
+    * NaturalSound distance falloff: $3500\text{ cm}$ ($35\text{ m}$) max audible radius.
+    * Air absorption low-pass filter: Attenuates frequencies from $20\text{ kHz}$ at $600\text{ cm}$ down to $800\text{ Hz}$ at $3500\text{ cm}$, rendering distant steps muffled and ominous.
+    * Wall occlusion: Visibility-channel trace with $350\text{ Hz}$ cutoff and $0.40$ volume through walls, giving players auditory depth to track threats around corridor bends.
+  * **Ambient Sickly Breathing (`BreathingAudioComponent`):**
+    * Attached component playing looping sickly breathing audio (`freesound_community-sickly-breathing-83152`).
+    * Inline 3D spatial attenuation ($2500\text{ cm}$ falloff, LPF, wall occlusion).
+    * Dynamic state volume interpolation: $0.35$ during Wander $\to$ $0.55$ during Search $\to$ $0.85$ during Chase.
+  * **Floor Line-Tracing & Non-Repeating Shuffle:**
+    * Downward trace evaluating physical materials (`PM_Carpet` / `SurfaceType1` "Carpet").
+    * Anti-repetition shuffle across 5 soft carpet samples (`Step1`–`Step5`).
 * **AI Controller:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsAIController` (reparented directly to native C++ `ABackroomsAIController`).
 * **Type-Safe Blackboard Key Architecture:**
   * Replaced all legacy hardcoded string literals (`TEXT("AIState")`, `TEXT("TargetActor")`, `TEXT("HasTarget")`, `TEXT("TargetLocation")`) with type-safe `FBlackboardKeySelector` fields exposed in `Category = "AI|Blackboard"`:
@@ -83,7 +100,7 @@ graph TD
   * Safe accessor fallback: reads and writes evaluate `SelectedKeyName.IsNone()` to guarantee resilience even if unassigned in editor defaults.
 * **Perception & State Machine:**
   * AI Perception Sight Sense configured for a $45^\circ$ forward cone and $18\text{ s}$ memory.
-  * Adaptive movement speeds: Wander at $180\text{ cm/s}$, Chase at $450\text{ cm/s}$.
+  * Adaptive movement speeds: Wander at $180\text{ cm/s}$, Search at $240\text{ cm/s}$, Chase at $450\text{ cm/s}$.
   * Deferred recursive pursuit in `OnMoveCompleted` via `SetTimerForNextTick` to prevent call-stack overflows during continuous chase loops.
   * Seamless corridor wandering and player tracking evaluated via `NavMeshBoundsVolume_0`.
 
@@ -218,6 +235,11 @@ flowchart LR
 2. **Physical Materials & Footsteps** *(Completed)*:
    * Created `PM_Carpet` (`UPhysicalMaterial`) and assigned to `M_Backrooms_Carpet` / `MI_Backrooms_Carpet`.
    * Native line-trace footstep audio implemented in `ABackroomsCharacter` playing randomized Berber carpet footsteps with speed-interpolated volume and pitch variation.
-3. **Entity AI Patrol & Chase** *(Core Refactor Complete)*:
+3. **Entity AI Patrol, Chase & Dynamic Footstep Audio** *(Completed)*:
+   * Native `ABackroomsEntity` authored and reparented `BP_BackroomsEntity`:
+     * State-adaptive footstep cadence ($1.0\text{ s}$ wander, $0.6\text{ s}$ search, $0.28\text{ s}$ chase).
+     * Spatialized 3D attenuation ($35\text{ m}$ falloff, LPF air absorption, visibility occlusion).
+     * Physical material detection against carpet tiles with anti-repetition shuffle.
+     * Ambient attached sickly breathing with dynamic state volume scaling.
    * Native `ABackroomsAIController` refactored to type-safe `FBlackboardKeySelector` key access with strict enum, object, bool, and vector filters.
-   * Reparented `BP_BackroomsAIController` and verified in `L_Backrooms_Main` PIE with $45^\circ$ sight cone perception and deferred chase recursion. Optional expansion into advanced StateTree tasks as needed.
+   * Reparented `BP_BackroomsAIController` and verified in `L_Backrooms_Main` PIE with $45^\circ$ sight cone perception and deferred chase recursion.

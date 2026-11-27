@@ -20,6 +20,7 @@ ABackroomsAIController::ABackroomsAIController()
 	, SearchLingerRadius(500.0f)       // Lingers tightly near the last seen location
 	, WanderRadius(1200.0f)
 	, WanderSpeed(180.0f)              // Quiet, deliberate stalker wander
+	, SearchSpeed(240.0f)              // Deliberate, cautious stalking speed
 	, ChaseSpeed(450.0f)               // Tense pursuit speed (player sprint is 600, walk is 300)
 	, ChaseSound(nullptr)
 	, LastKnownPlayerLocation(FVector::ZeroVector)
@@ -224,6 +225,8 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 		LastKnownPlayerLocation = Stimulus.StimulusLocation;
 		bIsChasing = false;
 		CurrentState = EBackroomsAIState::Search;
+
+		SetEntityMovementSpeed(SearchSpeed);
 
 		// Move directly toward last known location
 		MoveToLocation(LastKnownPlayerLocation, 60.0f);

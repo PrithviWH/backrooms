@@ -35,14 +35,22 @@
 | PlayerController | `BP_BackroomsPlayerController` |
 | Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system) |
 | HUD / UI | `WBP_BackroomsHUD` (minimalist liminal horror UI with flashlight status, level intro, interaction prompts; stamina bar removed) |
-| Entity / Monster | `BP_BackroomsEntity` |
+| Entity / Monster | `BP_BackroomsEntity` (derives from native `ABackroomsEntity`, spatialized 3D footstep audio, state-driven cadence/volume, ambient breathing) |
 | AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
 | Function Library | `BackroomsFunctionLibrary` (`UBackroomsFunctionLibrary` — camera fade, math, utilities) |
 | Ambient Manager | `BP_Backrooms_AmbientManager` |
 
 ## Audio & Physics
 * **Physical Materials:** `PM_Carpet` (`Friction=0.75`, `StaticFriction=0.75`, `SurfaceType=SurfaceType1` "Carpet") assigned to `M_Backrooms_Carpet` and inherited by `MI_Backrooms_Carpet`.
-* **Footstep Audio:** Implemented natively in `ABackroomsCharacter` with distance-based stride accumulation (`BaseStepDistance=150cm`, `SprintStepDistance=180cm`), ground line-tracing with physical material evaluation, random pitch modulation ($0.95$–$1.05$), velocity-interpolated volume ($0.4$ walk, $0.7$ sprint), and soft Berber carpet samples (`Step1`–`Step5` in `Content/Backrooms/Audio/Foot-steps/Footsteps/`) with non-repeating shuffle selection. Default fallback to concrete steps (`freeeverythingxx-walking-on-concrete-ver-2-268513`).
+* **Player Footstep Audio:** Implemented natively in `ABackroomsCharacter` with distance-based stride accumulation (`BaseStepDistance=150cm`, `SprintStepDistance=180cm`), ground line-tracing with physical material evaluation, random pitch modulation ($0.95$–$1.05$), velocity-interpolated volume ($0.4$ walk, $0.7$ sprint), and soft Berber carpet samples (`Step1`–`Step5` in `Content/Backrooms/Audio/Foot-steps/Footsteps/`) with non-repeating shuffle selection. Default fallback to concrete steps (`freeeverythingxx-walking-on-concrete-ver-2-268513`).
+* **Entity Footstep & Breathing Audio System:** Implemented natively in `ABackroomsEntity`:
+  * **Dynamic Cadence & Stride:** Stride distance and timing dynamically vary by operational AI state:
+    * *Idle Wander* ($180\text{ cm/s}$): $175\text{ cm}$ stride ($\sim 1.0\text{ s}$ per step), volume $0.55$, deep ominous pitch ($0.80$–$0.88$).
+    * *Search* ($240\text{ cm/s}$): $145\text{ cm}$ stride ($\sim 0.6\text{ s}$ per step), volume $0.72$, tense calculated pitch ($0.78$–$0.85$).
+    * *Chase* ($450\text{ cm/s}$): $125\text{ cm}$ stride ($\sim 0.28\text{ s}$ per step), volume $1.05$, aggressive heavy pitch ($0.72$–$0.80$), layered with heavy monster stomps (`lordsonny-monster-footstep-162883`, `universfield-heavy-walking-footsteps-352771`).
+  * **Spatialized 3D Attenuation:** Custom `USoundAttenuation` with NaturalSound falloff ($3500\text{ cm}$ / $35\text{ m}$), distance Low-Pass Filter ($600$–$3500\text{ cm}$ from $20\text{ kHz}$ to $800\text{ Hz}$), and visibility-channel wall occlusion ($350\text{ Hz}$ LPF, $0.40$ volume through walls).
+  * **Ambient Sickly Breathing:** Attached `BreathingAudioComponent` (`freesound_community-sickly-breathing-83152`) with 3D attenuation ($2500\text{ cm}$ falloff, LPF, occlusion), volume dynamically scaling across states ($0.35$ Wander $\to$ $0.55$ Search $\to$ $0.85$ Chase).
+  * **Surface Detection:** Ground downward line trace with physical material check (`PM_Carpet` / `SurfaceType1`). Non-repeating shuffle selection across sound sets.
 
 ## Input
 **Stack:** Enhanced Input  
