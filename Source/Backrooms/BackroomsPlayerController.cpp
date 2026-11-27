@@ -41,8 +41,16 @@ void ABackroomsPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// IMC registration is handled by ABackroomsCharacter::BeginPlay() / PawnClientRestart()
-	// Only apply persistent saved settings here
+	// Enforce clean gameplay input: no mouse cursor, no click/hover UI hit-testing
+	bShowMouseCursor = false;
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+
+	// IMC registration is handled solely by ABackroomsCharacter to prevent duplicate conflict
+	// Apply persistent saved settings here
 	if (UBackroomsSaveGame* Settings = UBackroomsSaveGame::LoadOrCreateSettings())
 	{
 		UBackroomsSaveGame::ApplyAllSettings(this, Settings);

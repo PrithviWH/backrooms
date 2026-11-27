@@ -102,6 +102,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
+	/** Mouse Look Input Mapping Context (/Game/Input/IMC_MouseLook) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TObjectPtr<UInputMappingContext> MouseLookMappingContext;
+
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> MoveAction;
@@ -109,6 +113,10 @@ public:
 	/** Look Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> LookAction;
+
+	/** Dedicated Mouse Look Input Action (/Game/Input/Actions/IA_MouseLook) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TObjectPtr<UInputAction> MouseLookAction;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")

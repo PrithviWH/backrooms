@@ -127,6 +127,18 @@ ABackroomsCharacter::ABackroomsCharacter()
 		LookAction = LookActionFinder.Object;
 	}
 
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> MouseIMCFinder(TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
+	if (MouseIMCFinder.Succeeded())
+	{
+		MouseLookMappingContext = MouseIMCFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> MouseLookActionFinder(TEXT("/Game/Input/Actions/IA_MouseLook.IA_MouseLook"));
+	if (MouseLookActionFinder.Succeeded())
+	{
+		MouseLookAction = MouseLookActionFinder.Object;
+	}
+
 	static ConstructorHelpers::FObjectFinder<UInputAction> JumpActionFinder(TEXT("/Game/Input/Actions/IA_Jump.IA_Jump"));
 	if (JumpActionFinder.Succeeded())
 	{
@@ -156,8 +168,12 @@ void ABackroomsCharacter::BeginPlay()
 	{
 		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
 	}
+	if (!MouseLookMappingContext)
+	{
+		MouseLookMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
+	}
 
-	// Add Input Mapping Context if player controller is available
+	// Add Input Mapping Contexts if player controller is available
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
@@ -165,6 +181,10 @@ void ABackroomsCharacter::BeginPlay()
 			if (DefaultMappingContext)
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+			if (MouseLookMappingContext)
+			{
+				Subsystem->AddMappingContext(MouseLookMappingContext, 1);
 			}
 		}
 	}
@@ -174,10 +194,14 @@ void ABackroomsCharacter::PawnClientRestart()
 {
 	Super::PawnClientRestart();
 
-	// Ensure DefaultMappingContext is valid
+	// Ensure MappingContexts are valid
 	if (!DefaultMappingContext)
 	{
 		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
+	}
+	if (!MouseLookMappingContext)
+	{
+		MouseLookMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
 	}
 
 	// Add Input Mapping Context to local player subsystem upon possession/restart
@@ -188,6 +212,10 @@ void ABackroomsCharacter::PawnClientRestart()
 			if (DefaultMappingContext)
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+			if (MouseLookMappingContext)
+			{
+				Subsystem->AddMappingContext(MouseLookMappingContext, 1);
 			}
 		}
 	}
@@ -205,6 +233,10 @@ void ABackroomsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	if (!LookAction)
 	{
 		LookAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Look.IA_Look"));
+	}
+	if (!MouseLookAction)
+	{
+		MouseLookAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_MouseLook.IA_MouseLook"));
 	}
 	if (!JumpAction)
 	{
@@ -231,6 +263,11 @@ void ABackroomsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		if (LookAction)
 		{
 			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABackroomsCharacter::Look);
+		}
+
+		if (MouseLookAction && MouseLookAction != LookAction)
+		{
+			EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &ABackroomsCharacter::Look);
 		}
 
 		if (SprintAction)
