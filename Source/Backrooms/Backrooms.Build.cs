@@ -17,7 +17,8 @@ public class Backrooms : ModuleRules
 			"AIModule",
 			"NavigationSystem",
 			"GameplayTasks",
-			"UMG"
+			"UMG",
+			"PhysicsCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

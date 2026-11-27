@@ -121,6 +121,21 @@ Located in `/Game/Backrooms/Textures/`:
   * Applied directly to `Floor_0` (base level plane), replacing the development grid material.
   * Walls (`M_Backrooms_Wallpaper`), ceilings (`M_Backrooms_CeilingTile`), and door frames remain completely untouched.
 
+### 3.3 Physical Material & Carpet Footstep Audio System
+* **Physical Material (`PM_Carpet`):**
+  * Asset path: `/Game/Backrooms/Materials/PM_Carpet`
+  * Friction & Static Friction: $0.75$ / $0.75$
+  * Surface Type: Custom `SurfaceType1` named `"Carpet"` in `Config/DefaultEngine.ini`
+  * Assigned directly to `M_Backrooms_Carpet.PhysMaterial`, propagating across all 710 `MI_Backrooms_Carpet` instances.
+* **Footstep Audio System (`ABackroomsCharacter` & `BP_BackroomsCharacter`):**
+  * Stride accumulation: Distance-based step triggering ($150\text{ cm}$ walk stride to $180\text{ cm}$ sprint stride) executing on ground movement.
+  * Downward Line Trace: Traces down from capsule bottom with `bReturnPhysicalMaterial=true`.
+  * Surface Evaluation: Checks hit physical material reference and surface type (`SurfaceType1`).
+  * Sound Selection: Randomly selects from soft Berber carpet samples (`Step1` through `Step5`) in `/Game/Backrooms/Audio/Foot-steps/Footsteps/` with anti-repetition memory. Non-carpet surfaces fallback to concrete footsteps.
+  * Pitch Modulation: Randomly varied between $0.95$ and $1.05$.
+  * Volume Scaling: Smoothly interpolated based on horizontal speed: $0.4$ walk volume up to $0.7$ sprint volume.
+  * Blueprint Extensibility: Exposes `TriggerFootstep` and `OnFootstepPlayed` event hook in `BP_BackroomsCharacter`.
+
 ---
 
 ## 4. Performance & Scalability Profile

@@ -11,6 +11,8 @@ class UCameraComponent;
 class USpotLightComponent;
 class UInputMappingContext;
 class UInputAction;
+class UPhysicalMaterial;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintMeterUpdated, double, Ratio);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintStateChanged, bool, bIsSprinting);
@@ -105,6 +107,48 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> FlashlightAction;
 
+	/** Physical Material associated with carpet flooring */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps")
+	TObjectPtr<UPhysicalMaterial> CarpetPhysicalMaterial;
+
+	/** Footstep sounds played when walking or running on carpet */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps")
+	TArray<TObjectPtr<USoundBase>> CarpetFootstepSounds;
+
+	/** Default footstep sounds played on non-carpet surfaces */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps")
+	TArray<TObjectPtr<USoundBase>> DefaultFootstepSounds;
+
+	/** Footstep volume multiplier during normal walking (0.3 - 0.5) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float WalkFootstepVolume;
+
+	/** Footstep volume multiplier during sprinting (0.6 - 0.8) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float SprintFootstepVolume;
+
+	/** Minimum random pitch multiplier */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float MinFootstepPitch;
+
+	/** Maximum random pitch multiplier */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float MaxFootstepPitch;
+
+	/** Distance traveled in cm required to trigger a footstep at walk speed */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "50.0", ClampMax = "400.0"))
+	float BaseStepDistance;
+
+	/** Distance traveled in cm required to trigger a footstep at sprint speed */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps", meta = (ClampMin = "50.0", ClampMax = "400.0"))
+	float SprintStepDistance;
+
+	UFUNCTION(BlueprintCallable, Category = "Footsteps")
+	void TriggerFootstep();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Footsteps")
+	void OnFootstepPlayed(USoundBase* Sound, FVector Location, float Volume, float Pitch, bool bIsCarpet);
+
 	UFUNCTION(BlueprintCallable, Category = "Sprint")
 	void StartSprint();
 
@@ -131,10 +175,16 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void UpdateFootsteps(float DeltaTime);
 
 	FTimerHandle SprintTimerHandle;
+
+	float FootstepDistanceAccumulator;
+	int32 LastCarpetSoundIndex;
+	int32 LastDefaultSoundIndex;
 };

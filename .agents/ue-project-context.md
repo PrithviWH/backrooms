@@ -33,12 +33,16 @@
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
 | GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
 | PlayerController | `BP_BackroomsPlayerController` |
-| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, stamina, head-bob) |
+| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, stamina sprint, footstep audio system) |
 | HUD / UI | `WBP_BackroomsHUD` (`HorrorUI`) |
 | Entity / Monster | `BP_BackroomsEntity` |
 | AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
 | Function Library | `BackroomsFunctionLibrary` (`UBackroomsFunctionLibrary` — camera fade, math, utilities) |
 | Ambient Manager | `BP_Backrooms_AmbientManager` |
+
+## Audio & Physics
+* **Physical Materials:** `PM_Carpet` (`Friction=0.75`, `StaticFriction=0.75`, `SurfaceType=SurfaceType1` "Carpet") assigned to `M_Backrooms_Carpet` and inherited by `MI_Backrooms_Carpet`.
+* **Footstep Audio:** Implemented natively in `ABackroomsCharacter` with distance-based stride accumulation (`BaseStepDistance=150cm`, `SprintStepDistance=180cm`), ground line-tracing with physical material evaluation, random pitch modulation ($0.95$–$1.05$), velocity-interpolated volume ($0.4$ walk, $0.7$ sprint), and soft Berber carpet samples (`Step1`–`Step5` in `Content/Backrooms/Audio/Foot-steps/Footsteps/`) with non-repeating shuffle selection. Default fallback to concrete steps (`freeeverythingxx-walking-on-concrete-ver-2-268513`).
 
 ## Input
 **Stack:** Enhanced Input  
