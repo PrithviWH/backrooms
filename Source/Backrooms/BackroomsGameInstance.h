@@ -7,7 +7,7 @@
 #include "BackroomsGameInstance.generated.h"
 
 /**
- * Custom GameInstance that persists gameplay state (stamina, inventory, level progression)
+ * Custom GameInstance that persists gameplay state (inventory, level progression)
  * across level transitions (e.g. from L_Backrooms_Main to backroomsLevel2).
  * Strictly contains session-lifetime data and persistence helpers.
  */
@@ -19,14 +19,6 @@ class BACKROOMS_API UBackroomsGameInstance : public UGameInstance
 public:
 	UBackroomsGameInstance();
 
-	/** Persistent player stamina value */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player State")
-	float PersistentStamina;
-
-	/** Persistent player max stamina */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player State")
-	float PersistentMaxStamina;
-
 	/** Persistent inventory item identifiers */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
 	TArray<FString> PersistentInventory;
@@ -34,14 +26,6 @@ public:
 	/** Current level or checkpoint tag */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Progression")
 	FName CurrentLevelTag;
-
-	/** Saves character stamina to the GameInstance */
-	UFUNCTION(BlueprintCallable, Category = "Backrooms|Persistence")
-	void SavePlayerState(float CurrentStamina, float MaxStamina);
-
-	/** Loads persisted character stamina */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Backrooms|Persistence")
-	void LoadPlayerState(float& OutCurrentStamina, float& OutMaxStamina) const;
 
 	/** Adds an item to the persistent inventory */
 	UFUNCTION(BlueprintCallable, Category = "Backrooms|Persistence")

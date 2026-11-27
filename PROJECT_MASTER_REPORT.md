@@ -20,7 +20,7 @@ graph TD
     GM -->|Player Controller| CTRL[BP_BackroomsPlayerController]
     CTRL -->|Initializes OnPossess| HUD[HorrorUI / WBP_HorrorHUD]
     PC -->|Enhanced Input IMC_Player| INP[IA_Move / IA_Look / IA_Sprint / IA_Jump]
-    PC -->|Stamina Delegates| HUD
+    PC -->|Flashlight Delegate| HUD
     MAP[L_Backrooms_Main] --> PPV[Unbound PostProcessVolume]
     MAP --> LIGHTS[216x Warm PointLights 300 cd]
     MAP --> FLICKER[BP_FlickeringLight Auto-Recover]
@@ -40,10 +40,11 @@ graph TD
   * `IA_Look`: Mouse look with sensitivity scaling and vertical pitch clamping.
   * `IA_Jump`: Standard impulse-based jump.
   * `IA_Sprint`: Dynamic sprint state management.
-* **Stamina & Sprint Mechanics:**
-  * Sprinting drains stamina over time; automatically drops back to base walk speed when stamina is exhausted or when input is released.
-  * Automatic stamina regeneration with configurable delay timer.
-  * Exposes OnStaminaChanged event dispatchers consumed directly by the HUD.
+* **Ungated Free Sprint Mechanics & Dynamic FOV:**
+  * Free sprint unencumbered by stamina meters or resource management, tailored for pure atmospheric liminal space exploration.
+  * Base Walk Speed: $300\text{ cm/s}$, Sprint Speed: $600\text{ cm/s}$ (active while `IA_Sprint` is held).
+  * Smooth Dynamic Camera FOV: transitions seamlessly between $90^\circ$ (walk) and $98^\circ$ (sprint) via frame-rate-independent `FMath::FInterpTo` in `Tick()`.
+  * Removed stamina drain timers, recovery slowdowns, and stamina meters.
 * **Mobile / Fallback Input:** Virtual joystick and touch interface bindings preserved for cross-platform support.
 
 ### 2.2 Player Controller & HUD Lifecycle (`BP_BackroomsPlayerController`)
@@ -58,12 +59,10 @@ graph TD
      - Performs an explicit null check on the created widget (logging an error on creation failure).
      - Assigns to `BackroomsHUD` and executes `AddToPlayerScreen`.
      - If `BackroomsHUD` already exists (e.g. re-possession mid-game or level reload), reuses the existing widget without duplicate instantiation.
-  6. **Delegate Binding**: Calls `SetupCharacter` on `BackroomsHUD` with the current character to bind stamina and flashlight event dispatchers.
-  7. **Deferred Initial Refresh (`0.1s` Timer)**: Schedules `SetTimerbyFunctionName` calling `RefreshHUD` after $0.1\text{ s}$, ensuring the character's `BeginPlay` and game-instance state restoration have completely finished before values populate.
-  8. **`RefreshHUD` Function**: Validates `BackroomsHUD` and `CurrentCharacter`, calls `GetCurrentStamina` directly on `BP_BackroomsCharacter`, and immediately pushes the normalized stamina ratio to `OnSprintMeterUpdated`.
-* **Character Stamina Safeguards (`BP_BackroomsCharacter`)**:
-  - `GetCurrentStamina` pure function safely clamps and computes ratio `(SprintMeter / SprintTime)`, defending against zero/negative `SprintTime`.
-  - `BeginPlay` validates stamina bounds ($> 0.0$), executes `RestorePlayerStateFromGameInstance`, and logs initialization state.
+  6. **Delegate Binding**: Calls `SetupCharacter` on `BackroomsHUD` with the current character to bind the flashlight toggle delegate (`OnFlashlightToggled` -> `SetFlashlightState`).
+  7. **Clean HUD Presentation**: `WBP_BackroomsHUD` maintains a minimalist horror HUD (collapsing legacy stamina bar, displaying only level intro and interactive cues).
+* **Character BeginPlay (`BP_BackroomsCharacter`)**:
+  - `BeginPlay` initializes character movement and logs operational state cleanly without obsolete stamina or state restoration calls.
 
 ### 2.3 GameMode Routing (`BP_BackroomsGameMode`)
 * **Asset Location:** `/Game/Backrooms/Blueprints/Systems/BP_BackroomsGameMode`
@@ -187,7 +186,7 @@ Located in `/Game/Backrooms/Textures/`:
 ## 5. Verification & Telemetry
 
 * **Play-In-Editor (PIE) Session:**
-  * Verified player possession, camera control, sprint stamina drain, and HUD display.
+  * Verified player possession, camera control, ungated sprint speed ($600\text{ cm/s}$), dynamic camera FOV transition ($90^\circ \to 98^\circ$), and clean HUD display without stamina constraints.
   * Ambient dust motes (`NS_DustMote`) render correctly under ceiling lights.
 * **Engine Map Check Results:**
   ```text

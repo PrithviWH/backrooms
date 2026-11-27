@@ -14,14 +14,13 @@ class UInputAction;
 class UPhysicalMaterial;
 class USoundBase;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintMeterUpdated, double, Ratio);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintStateChanged, bool, bIsSprinting);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsToggled);
 
 /**
  * Authoritative Character for Backrooms.
- * Implements first-person camera, attached flashlight, stamina sprint mechanics,
- * and Enhanced Input handling in native C++ to decouple from template assets.
+ * Implements first-person camera, attached flashlight, ungated free sprint mechanics,
+ * smooth camera FOV speed dynamics, and Enhanced Input handling in native C++.
  */
 UCLASS()
 class BACKROOMS_API ABackroomsCharacter : public ACharacter
@@ -39,18 +38,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flashlight")
 	TObjectPtr<USpotLightComponent> FlashlightComponent;
 
-	/** Current sprint stamina meter */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sprint")
-	float SprintMeter;
-
-	/** Total max sprint time in seconds */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sprint")
-	float SprintTime;
-
-	/** Fixed tick interval for stamina calculation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sprint")
-	float SprintFixedTickTime;
-
 	/** Base walking speed */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed;
@@ -59,21 +46,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float SprintSpeed;
 
-	/** Walk speed when exhausted / recovering */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float RecoveringWalkSpeed;
+	/** Default camera field of view */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (ClampMin = "60.0", ClampMax = "120.0"))
+	float DefaultFOV;
+
+	/** Target camera field of view when sprinting */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (ClampMin = "60.0", ClampMax = "120.0"))
+	float SprintFOV;
 
 	/** Whether the player is currently requesting sprint */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sprint")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bWantsToSprint;
-
-	/** Whether the player is recovering from exhaustion */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sprint")
-	bool bRecovering;
-
-	/** Delegate fired when sprint meter is updated (normalized 0.0 - 1.0) */
-	UPROPERTY(BlueprintAssignable, Category = "Events")
-	FOnSprintMeterUpdated OnSprintMeterUpdated;
 
 	/** Delegate fired when sprint state changes */
 	UPROPERTY(BlueprintAssignable, Category = "Events")
@@ -149,29 +132,17 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Footsteps")
 	void OnFootstepPlayed(USoundBase* Sound, FVector Location, float Volume, float Pitch, bool bIsCarpet);
 
-	UFUNCTION(BlueprintCallable, Category = "Sprint")
+	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void StartSprint();
 
-	UFUNCTION(BlueprintCallable, Category = "Sprint")
+	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void StopSprint();
 
 	UFUNCTION(BlueprintCallable, Category = "Flashlight")
 	void ToggleFlashlight();
 
-	UFUNCTION(BlueprintPure, Category = "Sprint")
-	float GetSprintMeter() const { return SprintMeter; }
-
-	UFUNCTION(BlueprintPure, Category = "Sprint")
-	float GetSprintTime() const { return SprintTime; }
-
-	UFUNCTION(BlueprintPure, Category = "Sprint")
+	UFUNCTION(BlueprintPure, Category = "Movement")
 	bool GetWantsToSprint() const { return bWantsToSprint; }
-
-	UFUNCTION(BlueprintPure, Category = "Sprint")
-	bool GetRecovering() const { return bRecovering; }
-
-	UFUNCTION(BlueprintCallable, Category = "Sprint")
-	void SprintFixedTick();
 
 protected:
 	virtual void BeginPlay() override;
@@ -181,8 +152,6 @@ protected:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void UpdateFootsteps(float DeltaTime);
-
-	FTimerHandle SprintTimerHandle;
 
 	float FootstepDistanceAccumulator;
 	int32 LastCarpetSoundIndex;

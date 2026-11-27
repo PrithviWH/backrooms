@@ -14,14 +14,11 @@
 #include "UObject/ConstructorHelpers.h"
 
 ABackroomsCharacter::ABackroomsCharacter()
-	: SprintMeter(5.0f)
-	, SprintTime(5.0f)
-	, SprintFixedTickTime(0.05f)
-	, WalkSpeed(300.0f)
+	: WalkSpeed(300.0f)
 	, SprintSpeed(600.0f)
-	, RecoveringWalkSpeed(150.0f)
+	, DefaultFOV(90.0f)
+	, SprintFOV(98.0f)
 	, bWantsToSprint(false)
-	, bRecovering(false)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -102,9 +99,6 @@ void ABackroomsCharacter::BeginPlay()
 			}
 		}
 	}
-
-	// Start looping sprint/stamina timer
-	GetWorld()->GetTimerManager().SetTimer(SprintTimerHandle, this, &ABackroomsCharacter::SprintFixedTick, SprintFixedTickTime, true);
 }
 
 void ABackroomsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -174,21 +168,15 @@ void ABackroomsCharacter::Look(const FInputActionValue& Value)
 void ABackroomsCharacter::StartSprint()
 {
 	bWantsToSprint = true;
-	if (!bRecovering)
-	{
-		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
-		OnSprintStateChanged.Broadcast(true);
-	}
+	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	OnSprintStateChanged.Broadcast(true);
 }
 
 void ABackroomsCharacter::StopSprint()
 {
 	bWantsToSprint = false;
-	if (!bRecovering)
-	{
-		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-		OnSprintStateChanged.Broadcast(false);
-	}
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	OnSprintStateChanged.Broadcast(false);
 }
 
 void ABackroomsCharacter::ToggleFlashlight()
@@ -201,43 +189,19 @@ void ABackroomsCharacter::ToggleFlashlight()
 	}
 }
 
-void ABackroomsCharacter::SprintFixedTick()
-{
-	if (bWantsToSprint && !bRecovering)
-	{
-		if (SprintMeter > 0.0f)
-		{
-			SprintMeter = FMath::Max(0.0f, SprintMeter - SprintFixedTickTime);
-			if (SprintMeter <= 0.0f)
-			{
-				bRecovering = true;
-				GetCharacterMovement()->MaxWalkSpeed = RecoveringWalkSpeed;
-				OnSprintStateChanged.Broadcast(false);
-			}
-		}
-	}
-	else
-	{
-		if (SprintMeter < SprintTime)
-		{
-			SprintMeter = FMath::Min(SprintTime, SprintMeter + SprintFixedTickTime);
-			if (SprintMeter >= SprintTime)
-			{
-				bRecovering = false;
-				GetCharacterMovement()->MaxWalkSpeed = bWantsToSprint ? SprintSpeed : WalkSpeed;
-				OnSprintStateChanged.Broadcast(bWantsToSprint);
-			}
-		}
-	}
-
-	const double NormalizedRatio = (SprintTime > 0.0f) ? static_cast<double>(SprintMeter / SprintTime) : 0.0;
-	OnSprintMeterUpdated.Broadcast(NormalizedRatio);
-}
-
 void ABackroomsCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateFootsteps(DeltaTime);
+
+	// Smooth sprint FOV transition
+	if (FirstPersonCamera)
+	{
+		const bool bIsMoving = GetCharacterMovement() && GetCharacterMovement()->Velocity.SizeSquared() > 100.0f;
+		const float TargetFOV = (bWantsToSprint && bIsMoving) ? SprintFOV : DefaultFOV;
+		const float NewFOV = FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaTime, 6.0f);
+		FirstPersonCamera->SetFieldOfView(NewFOV);
+	}
 }
 
 void ABackroomsCharacter::UpdateFootsteps(float DeltaTime)

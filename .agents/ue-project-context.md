@@ -33,8 +33,8 @@
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
 | GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
 | PlayerController | `BP_BackroomsPlayerController` |
-| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, stamina sprint, footstep audio system) |
-| HUD / UI | `WBP_BackroomsHUD` (`HorrorUI`) |
+| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system) |
+| HUD / UI | `WBP_BackroomsHUD` (minimalist liminal horror UI with flashlight status, level intro, interaction prompts; stamina bar removed) |
 | Entity / Monster | `BP_BackroomsEntity` |
 | AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
 | Function Library | `BackroomsFunctionLibrary` (`UBackroomsFunctionLibrary` — camera fade, math, utilities) |
