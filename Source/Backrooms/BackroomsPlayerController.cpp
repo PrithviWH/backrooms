@@ -16,15 +16,8 @@ ABackroomsPlayerController::ABackroomsPlayerController()
 	, PauseMenuInstance(nullptr)
 {
 	bShowMouseCursor = false;
-	bEnableClickEvents = true;
-	bEnableMouseOverEvents = true;
-
-	// Load default mapping context if not already set
-	static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/Input/IMC_Default.IMC_Default"));
-	if (IMCFinder.Succeeded())
-	{
-		DefaultMappingContext = IMCFinder.Object;
-	}
+	bEnableClickEvents = false;      // false during gameplay to prevent mouse delta interception
+	bEnableMouseOverEvents = false;  // false during gameplay to prevent mouse delta interception
 
 	// Load IA_Pause
 	static ConstructorHelpers::FObjectFinder<UInputAction> PauseFinder(TEXT("/Game/Input/Actions/IA_Pause.IA_Pause"));
@@ -48,15 +41,8 @@ void ABackroomsPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-	{
-		if (DefaultMappingContext)
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
-	}
-
-	// Apply all persistent saved settings (Audio, Scalability, Controls)
+	// IMC registration is handled by ABackroomsCharacter::BeginPlay() / PawnClientRestart()
+	// Only apply persistent saved settings here
 	if (UBackroomsSaveGame* Settings = UBackroomsSaveGame::LoadOrCreateSettings())
 	{
 		UBackroomsSaveGame::ApplyAllSettings(this, Settings);
@@ -78,6 +64,10 @@ void ABackroomsPlayerController::SetupInputComponent()
 
 void ABackroomsPlayerController::OpenPauseMenu()
 {
+	// Enable mouse events only when UI is active
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+
 	if (!PauseMenuInstance)
 	{
 		TSubclassOf<UUserWidget> ClassToUse = PauseMenuClass ? PauseMenuClass : TSubclassOf<UUserWidget>(UBackroomsPauseMenu::StaticClass());
@@ -105,6 +95,10 @@ void ABackroomsPlayerController::OpenPauseMenu()
 
 void ABackroomsPlayerController::ClosePauseMenu()
 {
+	// Disable mouse UI events when returning to gameplay
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+
 	if (PauseMenuInstance)
 	{
 		PauseMenuInstance->RemoveFromParent();

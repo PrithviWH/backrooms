@@ -66,7 +66,11 @@ public:
 
 	/** Target player currently detected in sight */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|State")
-	TObjectPtr<AActor> TargetPlayer;
+	TWeakObjectPtr<AActor> TargetPlayer;
+
+	/** Helper to get valid target player actor */
+	UFUNCTION(BlueprintPure, Category = "AI|State")
+	AActor* GetTargetPlayer() const { return TargetPlayer.Get(); }
 
 	/** Whether entity is currently chasing the player */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|State")
@@ -124,10 +128,13 @@ public:
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 
 	FTimerHandle LostSightTimerHandle;
 	FTimerHandle WanderWaitTimerHandle;
+	FTimerHandle ChaseNextTickTimerHandle;
 	FVector LastKnownPlayerLocation;
 
 	void SetEntityMovementSpeed(float Speed);

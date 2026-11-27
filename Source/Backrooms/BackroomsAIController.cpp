@@ -2,6 +2,7 @@
 
 #include "BackroomsAIController.h"
 #include "NavigationSystem.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -96,10 +97,47 @@ void ABackroomsAIController::OnPossess(APawn* InPawn)
 	UpdateBlackboardKeys();
 
 	// Schedule initial wander
-	GetWorld()->GetTimerManager().SetTimer(WanderWaitTimerHandle, [this]()
+	if (UWorld* World = GetWorld())
 	{
-		MoveToRandomReachablePoint(WanderRadius);
-	}, 1.5f, false);
+		World->GetTimerManager().SetTimer(WanderWaitTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (GetPawn() && !GetPawn()->IsActorBeingDestroyed())
+			{
+				MoveToRandomReachablePoint(WanderRadius);
+			}
+		}), 1.5f, false);
+	}
+}
+
+void ABackroomsAIController::OnUnPossess()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(LostSightTimerHandle);
+		World->GetTimerManager().ClearTimer(WanderWaitTimerHandle);
+		World->GetTimerManager().ClearTimer(ChaseNextTickTimerHandle);
+	}
+
+	TargetPlayer = nullptr;
+	bIsChasing = false;
+	StopMovement();
+
+	Super::OnUnPossess();
+}
+
+void ABackroomsAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(LostSightTimerHandle);
+		World->GetTimerManager().ClearTimer(WanderWaitTimerHandle);
+		World->GetTimerManager().ClearTimer(ChaseNextTickTimerHandle);
+	}
+
+	TargetPlayer = nullptr;
+	bIsChasing = false;
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void ABackroomsAIController::Tick(float DeltaTime)
@@ -129,13 +167,16 @@ void ABackroomsAIController::Tick(float DeltaTime)
 				StateColor = FColor::Red;
 				break;
 			case EBackroomsAIState::Search:
-				StateStr = FString::Printf(TEXT("SEARCHING (%.1fs left)"), GetWorld()->GetTimerManager().GetTimerRemaining(LostSightTimerHandle));
+				StateStr = FString::Printf(TEXT("SEARCHING (%.1fs left)"), (GetWorld() && GetWorld()->GetTimerManager().IsTimerActive(LostSightTimerHandle)) ? GetWorld()->GetTimerManager().GetTimerRemaining(LostSightTimerHandle) : 0.0f);
 				StateColor = FColor::Yellow;
 				break;
 			}
 
-			FVector TextLocation = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 110.0f);
-			DrawDebugString(GetWorld(), TextLocation, FString::Printf(TEXT("[BB_AIState: %s]"), *StateStr), nullptr, StateColor, 0.0f, false, 1.2f);
+			if (GetWorld() && !ControlledPawn->IsActorBeingDestroyed())
+			{
+				FVector TextLocation = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 110.0f);
+				DrawDebugString(GetWorld(), TextLocation, FString::Printf(TEXT("[BB_AIState: %s]"), *StateStr), nullptr, StateColor, 0.0f, false, 1.2f);
+			}
 		}
 	}
 #endif
@@ -145,50 +186,74 @@ void ABackroomsAIController::OnMoveCompleted(FAIRequestID RequestID, const FPath
 {
 	Super::OnMoveCompleted(RequestID, Result);
 
-	if (CurrentState == EBackroomsAIState::Chase && TargetPlayer)
+	// If the move was aborted (e.g. from unpossess, cleanup, or new request), do not schedule new moves
+	if (Result.Code == EPathFollowingResult::Aborted || IsActorBeingDestroyed() || !GetPawn() || GetPawn()->IsActorBeingDestroyed())
 	{
-		// Defer to next tick to prevent re-entrant synchronous recursion in OnMoveCompleted
-		GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		return;
+	}
+
+	if (CurrentState == EBackroomsAIState::Chase)
+	{
+		AActor* Target = TargetPlayer.Get();
+		if (IsValid(Target) && !Target->IsActorBeingDestroyed() && GetPawn() && !GetPawn()->IsActorBeingDestroyed())
 		{
-			if (CurrentState == EBackroomsAIState::Chase && TargetPlayer)
+			// Defer to next tick to prevent re-entrant synchronous recursion in OnMoveCompleted
+			if (UWorld* World = GetWorld())
 			{
-				MoveToActor(TargetPlayer, 80.0f);
+				World->GetTimerManager().ClearTimer(ChaseNextTickTimerHandle);
+				World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (CurrentState == EBackroomsAIState::Chase && GetPawn() && !GetPawn()->IsActorBeingDestroyed())
+					{
+						AActor* GoalActor = TargetPlayer.Get();
+						if (IsValid(GoalActor) && !GoalActor->IsActorBeingDestroyed())
+						{
+							MoveToActor(GoalActor, 80.0f);
+						}
+					}
+				}));
 			}
-		});
+		}
 	}
 	else if (CurrentState == EBackroomsAIState::Search)
 	{
 		// Lingering search: wander specifically near last known player location
-		GetWorld()->GetTimerManager().SetTimer(WanderWaitTimerHandle, [this]()
+		if (UWorld* World = GetWorld())
 		{
-			if (CurrentState == EBackroomsAIState::Search)
+			World->GetTimerManager().SetTimer(WanderWaitTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
-				MoveToReachablePointNear(LastKnownPlayerLocation, SearchLingerRadius);
-			}
-		}, FMath::RandRange(1.0f, 2.5f), false);
+				if (CurrentState == EBackroomsAIState::Search && GetPawn() && !GetPawn()->IsActorBeingDestroyed())
+				{
+					MoveToReachablePointNear(LastKnownPlayerLocation, SearchLingerRadius);
+				}
+			}), FMath::RandRange(1.0f, 2.5f), false);
+		}
 	}
 	else if (CurrentState == EBackroomsAIState::IdleWander)
 	{
 		// Passive corridor wander
-		GetWorld()->GetTimerManager().SetTimer(WanderWaitTimerHandle, [this]()
+		if (UWorld* World = GetWorld())
 		{
-			if (CurrentState == EBackroomsAIState::IdleWander)
+			World->GetTimerManager().SetTimer(WanderWaitTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
-				MoveToRandomReachablePoint(WanderRadius);
-			}
-		}, FMath::RandRange(2.0f, 4.0f), false);
+				if (CurrentState == EBackroomsAIState::IdleWander && GetPawn() && !GetPawn()->IsActorBeingDestroyed())
+				{
+					MoveToRandomReachablePoint(WanderRadius);
+				}
+			}), FMath::RandRange(2.0f, 4.0f), false);
+		}
 	}
 }
 
 void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
 {
-	if (!Actor || Actor == GetPawn())
+	if (!Actor || Actor == GetPawn() || IsActorBeingDestroyed() || !GetPawn() || GetPawn()->IsActorBeingDestroyed())
 	{
 		return;
 	}
 
 	ACharacter* PlayerChar = Cast<ACharacter>(Actor);
-	if (!PlayerChar || !PlayerChar->IsPlayerControlled())
+	if (!PlayerChar || !PlayerChar->IsPlayerControlled() || PlayerChar->IsActorBeingDestroyed())
 	{
 		return;
 	}
@@ -196,8 +261,12 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 	if (Stimulus.WasSuccessfullySensed())
 	{
 		// SIGHT ACQUIRED -> Transition to Chase
-		GetWorld()->GetTimerManager().ClearTimer(LostSightTimerHandle);
-		GetWorld()->GetTimerManager().ClearTimer(WanderWaitTimerHandle);
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(LostSightTimerHandle);
+			World->GetTimerManager().ClearTimer(WanderWaitTimerHandle);
+			World->GetTimerManager().ClearTimer(ChaseNextTickTimerHandle);
+		}
 
 		// Play loud audio cue ONLY on entering Chase (stealthy silent during wander/search)
 		if (CurrentState != EBackroomsAIState::Chase && ChaseSound && GetPawn())
@@ -211,8 +280,8 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 		LastKnownPlayerLocation = Stimulus.StimulusLocation;
 
 		SetEntityMovementSpeed(ChaseSpeed);
-		SetFocus(TargetPlayer);
-		MoveToActor(TargetPlayer, 80.0f);
+		SetFocus(Actor);
+		MoveToActor(Actor, 80.0f);
 
 		UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Player detected in forward 45 deg cone! Entering Chase."));
 
@@ -236,7 +305,10 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 		UpdateBlackboardKeys();
 
 		// Start long memory search timer (15-20s)
-		GetWorld()->GetTimerManager().SetTimer(LostSightTimerHandle, this, &ABackroomsAIController::OnLoseSightTimerExpired, LostSightSearchDuration, false);
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(LostSightTimerHandle, this, &ABackroomsAIController::OnLoseSightTimerExpired, LostSightSearchDuration, false);
+		}
 	}
 }
 
@@ -259,7 +331,7 @@ void ABackroomsAIController::OnLoseSightTimerExpired()
 void ABackroomsAIController::MoveToRandomReachablePoint(float Radius)
 {
 	APawn* ControlledPawn = GetPawn();
-	if (!ControlledPawn)
+	if (!ControlledPawn || ControlledPawn->IsActorBeingDestroyed())
 	{
 		return;
 	}
@@ -285,6 +357,12 @@ void ABackroomsAIController::MoveToRandomReachablePoint(float Radius)
 
 void ABackroomsAIController::MoveToReachablePointNear(const FVector& Center, float Radius)
 {
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn || ControlledPawn->IsActorBeingDestroyed())
+	{
+		return;
+	}
+
 	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
 	if (!NavSys)
 	{
@@ -326,9 +404,10 @@ void ABackroomsAIController::UpdateBlackboardKeys()
 
 		BB->SetValueAsEnum(StateKey, static_cast<uint8>(CurrentState));
 
-		if (TargetPlayer)
+		AActor* Target = TargetPlayer.Get();
+		if (IsValid(Target) && !Target->IsActorBeingDestroyed())
 		{
-			BB->SetValueAsObject(TargetKey, TargetPlayer);
+			BB->SetValueAsObject(TargetKey, Target);
 			BB->SetValueAsBool(HasTargetK, true);
 		}
 		else
