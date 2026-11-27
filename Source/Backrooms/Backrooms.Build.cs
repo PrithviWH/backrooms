@@ -16,7 +16,8 @@ public class Backrooms : ModuleRules
 			"EnhancedInput",
 			"AIModule",
 			"NavigationSystem",
-			"GameplayTasks"
+			"GameplayTasks",
+			"UMG"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

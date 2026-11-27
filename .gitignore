@@ -35,3 +35,7 @@ Thumbs.db
 # Local user configuration overrides
 Config/User*.ini
 
+# Deprecated legacy template folders
+Content/FirstPerson/
+Content/Variant_Horror/
+
