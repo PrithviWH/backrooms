@@ -33,8 +33,8 @@ graph TD
 
 ### 2.1 Authoritative Character (`BP_BackroomsCharacter`)
 * **Asset Location:** `/Game/Backrooms/Characters/Player/BP_BackroomsCharacter`
-* **Parent Class:** `Character` (`ACharacter`)
-* **Camera System:** Integrated first-person camera component attached directly to root with configurable eye-height and head-bob dynamics.
+* **Parent Class:** Native C++ `ABackroomsCharacter` (`ACharacter`)
+* **Camera System:** Integrated first-person camera component (`FirstPersonCamera`) attached directly to capsule root with configurable eye-height, dynamic sprint FOV transitions ($90^\circ \to 98^\circ$), and native C++ camera collision prevention against wall clipping.
 * **Enhanced Input Integration:** Centralized in `Content/Input/`. Fully wired to:
   * `IA_Move`: 2D Vector directional movement with smooth acceleration.
   * `IA_Look`: Mouse look with sensitivity scaling and vertical pitch clamping.
@@ -144,6 +144,22 @@ graph TD
   * **Zero Event Tick**: Uses asynchronous `Set Timer by Function Name`.
   * **Auto-Recovery**: Brief flickers dip to $2000\text{ lm}$, then automatically schedule `RestoreNormalIntensity` ($6000\text{ lm}$) within $0.08\text{ s}$, preventing lights from permanently turning off.
   * Configurable buzz audio spawn at fixture location.
+
+### 2.7 Native Camera Collision Prevention System (`ABackroomsCharacter`)
+* **Problem Solved:** First-person cameras attached to the character capsule without collision detection can clip through wall geometry when players press into sharp $90^\circ$ corners, doorway frames, or thin partition walls. This allowed players to visually scout ahead and locate the stalker entity through walls, destroying the core "fear of the unknown" horror atmosphere.
+* **Architectural Approach:** Native C++ sphere sweep on `ECC_Camera` implemented inside `ABackroomsCharacter::UpdateCameraCollision(float DeltaTime)` evaluated during `Tick()`.
+* **Mathematical & Geometric Design:**
+  * **Head / Pivot Origin:** `BaseHeadRelativeLocation = FVector(0.0f, 0.0f, 64.0f)` (or skeletal mesh `head` socket if available).
+  * **Desired Location:** `CapsuleTransform.TransformPosition(BaseHeadRelativeLocation + DefaultCameraOffset)` where `DefaultCameraOffset = FVector(15.0f, 0.0f, 0.0f)`.
+  * **Sphere Probe:** `CameraProbeRadius = 12.0f` ($12\text{ cm}$ radius). Sweeps along the forward vector from head to desired camera location, forming a continuous 3D collision envelope around the camera lens.
+  * **Collision Evaluation:**
+    * When unblocked: Target offset smoothly returns to `DefaultCameraOffset` ($15\text{ cm}$ forward).
+    * When blocked: Safe distance is calculated from `HitResult.Distance` and clamped between `CameraMinDistance` ($10.0\text{ cm}$) and `DefaultCameraOffset.Size()`. If extreme corner penetration occurs (`Distance < MinDistance` or `bStartPenetrating`), distance gracefully retracts to $0\text{ cm}$ (the capsule core), keeping the camera safe inside the $42\text{ cm}$ capsule radius.
+  * **Frame-Rate-Independent Interpolation:** Offset transitions smoothly via `FMath::VInterpTo(CurrentCameraOffset, TargetOffset, DeltaTime, CameraSmoothSpeed)` with `CameraSmoothSpeed = 10.0f` ($\sim 15\%$ per frame at 60 FPS), eliminating camera snapping, popping, or visual jitter.
+* **Blueprint & Designer Controls:**
+  * Reflected properties in category `Camera|Collision`: `CameraProbeRadius`, `CameraMinDistance`, `CameraSmoothSpeed`, `DefaultCameraOffset`, `bEnableCameraCollision`, and `bDrawDebugCameraCollision`.
+  * Reflected getters `GetCurrentCameraOffset()` and `GetDesiredCameraLocation()`.
+  * Shipping-safe debug visualization with `DrawDebugSphere`, `DrawDebugLine`, and `DrawDebugPoint`.
 
 ---
 

@@ -34,6 +34,30 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 
+	/** Probe sphere radius used for camera collision detection */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision", meta = (ClampMin = "1.0", ClampMax = "50.0"))
+	float CameraProbeRadius;
+
+	/** Minimum distance camera can retreat toward character head/origin */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision", meta = (ClampMin = "0.0", ClampMax = "50.0"))
+	float CameraMinDistance;
+
+	/** Interpolation speed for camera collision pull-back and restore */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision", meta = (ClampMin = "1.0", ClampMax = "50.0"))
+	float CameraSmoothSpeed;
+
+	/** Default camera offset relative to the head pivot */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision")
+	FVector DefaultCameraOffset;
+
+	/** Whether camera collision detection is active */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision")
+	bool bEnableCameraCollision;
+
+	/** Whether to draw debug collision spheres and trace lines */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Collision")
+	bool bDrawDebugCameraCollision;
+
 	/** Flashlight spot light component attached to camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flashlight")
 	TObjectPtr<USpotLightComponent> FlashlightComponent;
@@ -158,6 +182,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Controls")
 	void SetInvertY(bool bInInvertY) { bInvertY = bInInvertY; }
 
+	UFUNCTION(BlueprintPure, Category = "Camera|Collision")
+	FVector GetCurrentCameraOffset() const { return CurrentCameraOffset; }
+
+	UFUNCTION(BlueprintPure, Category = "Camera|Collision")
+	FVector GetDesiredCameraLocation() const { return DesiredCameraLocation; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -166,8 +196,14 @@ protected:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void UpdateFootsteps(float DeltaTime);
+	void UpdateCameraCollision(float DeltaTime);
 
 	float FootstepDistanceAccumulator;
 	int32 LastCarpetSoundIndex;
 	int32 LastDefaultSoundIndex;
+
+private:
+	FVector DesiredCameraLocation;
+	FVector CurrentCameraOffset;
+	FVector BaseHeadRelativeLocation;
 };

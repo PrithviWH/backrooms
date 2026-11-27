@@ -13,15 +13,34 @@
 #include "Kismet/GameplayStatics.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "UObject/ConstructorHelpers.h"
+#include "DrawDebugHelpers.h"
 
 ABackroomsCharacter::ABackroomsCharacter()
-	: WalkSpeed(300.0f)
+	: CameraProbeRadius(12.0f)
+	, CameraMinDistance(10.0f)
+	, CameraSmoothSpeed(10.0f)
+	, DefaultCameraOffset(FVector(15.0f, 0.0f, 0.0f))
+	, bEnableCameraCollision(true)
+	, bDrawDebugCameraCollision(false)
+	, WalkSpeed(300.0f)
 	, SprintSpeed(600.0f)
 	, DefaultFOV(90.0f)
 	, SprintFOV(98.0f)
 	, bWantsToSprint(false)
+	, WalkFootstepVolume(0.4f)
+	, SprintFootstepVolume(0.7f)
+	, MinFootstepPitch(0.95f)
+	, MaxFootstepPitch(1.05f)
+	, BaseStepDistance(150.0f)
+	, SprintStepDistance(180.0f)
 	, MouseSensitivity(1.0f)
 	, bInvertY(false)
+	, FootstepDistanceAccumulator(0.0f)
+	, LastCarpetSoundIndex(-1)
+	, LastDefaultSoundIndex(-1)
+	, DesiredCameraLocation(FVector::ZeroVector)
+	, CurrentCameraOffset(FVector(15.0f, 0.0f, 0.0f))
+	, BaseHeadRelativeLocation(FVector(0.0f, 0.0f, 64.0f))
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -31,7 +50,7 @@ ABackroomsCharacter::ABackroomsCharacter()
 	// Create First Person Camera Component
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
-	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Position the camera at eye level
+	FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + DefaultCameraOffset); // Position the camera at eye level + forward offset
 	FirstPersonCamera->bUsePawnControlRotation = true;
 
 	// Create Flashlight Component attached to Camera
@@ -204,6 +223,7 @@ void ABackroomsCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateFootsteps(DeltaTime);
+	UpdateCameraCollision(DeltaTime);
 
 	// Smooth sprint FOV transition
 	if (FirstPersonCamera)
@@ -213,6 +233,108 @@ void ABackroomsCharacter::Tick(float DeltaTime)
 		const float NewFOV = FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaTime, 6.0f);
 		FirstPersonCamera->SetFieldOfView(NewFOV);
 	}
+}
+
+void ABackroomsCharacter::UpdateCameraCollision(float DeltaTime)
+{
+	if (!FirstPersonCamera)
+	{
+		return;
+	}
+
+	if (!bEnableCameraCollision)
+	{
+		CurrentCameraOffset = FMath::VInterpTo(CurrentCameraOffset, DefaultCameraOffset, DeltaTime, CameraSmoothSpeed);
+		FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset);
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FTransform& CapsuleTransform = GetCapsuleComponent() ? GetCapsuleComponent()->GetComponentTransform() : GetActorTransform();
+
+	// Determine head/pivot location in world space
+	FVector HeadLocation;
+	if (GetMesh() && GetMesh()->DoesSocketExist(TEXT("head")))
+	{
+		HeadLocation = GetMesh()->GetSocketLocation(TEXT("head"));
+	}
+	else
+	{
+		HeadLocation = CapsuleTransform.TransformPosition(BaseHeadRelativeLocation);
+	}
+
+	// Compute desired camera position in world space
+	DesiredCameraLocation = CapsuleTransform.TransformPosition(BaseHeadRelativeLocation + DefaultCameraOffset);
+
+	// Prepare collision query ignoring self and own components
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(CameraCollisionTrace), false, this);
+	QueryParams.AddIgnoredActor(this);
+	if (GetMesh())
+	{
+		QueryParams.AddIgnoredComponent(GetMesh());
+	}
+	if (GetCapsuleComponent())
+	{
+		QueryParams.AddIgnoredComponent(GetCapsuleComponent());
+	}
+
+	const FCollisionShape ProbeShape = FCollisionShape::MakeSphere(CameraProbeRadius);
+	FHitResult HitResult;
+
+	// Sweep sphere along Camera channel from Head to Desired location
+	const bool bHit = World->SweepSingleByChannel(
+		HitResult,
+		HeadLocation,
+		DesiredCameraLocation,
+		FQuat::Identity,
+		ECC_Camera,
+		ProbeShape,
+		QueryParams
+	);
+
+	FVector TargetOffset = DefaultCameraOffset;
+
+	if (bHit)
+	{
+		const float DesiredDist = DefaultCameraOffset.Size();
+		const FVector Direction = (DesiredDist > KINDA_SMALL_NUMBER) ? DefaultCameraOffset.GetSafeNormal() : FVector::ForwardVector;
+
+		float SafeDistance = HitResult.Distance;
+		if (HitResult.bStartPenetrating)
+		{
+			SafeDistance = 0.0f;
+		}
+		else
+		{
+			// Safe distance clamped between CameraMinDistance and desired distance,
+			// while allowing pull-back to hit distance if penetration occurs inside MinDistance
+			SafeDistance = FMath::Clamp(SafeDistance, FMath::Min(CameraMinDistance, SafeDistance), DesiredDist);
+		}
+
+		TargetOffset = Direction * SafeDistance;
+	}
+
+	// Smoothly interpolate current camera offset to target offset
+	CurrentCameraOffset = FMath::VInterpTo(CurrentCameraOffset, TargetOffset, DeltaTime, CameraSmoothSpeed);
+	FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset);
+
+#if !UE_BUILD_SHIPPING
+	if (bDrawDebugCameraCollision)
+	{
+		DrawDebugSphere(World, HeadLocation, CameraProbeRadius, 8, FColor::Green, false, -1.0f, 0, 0.5f);
+		DrawDebugSphere(World, DesiredCameraLocation, CameraProbeRadius, 8, bHit ? FColor::Red : FColor::Cyan, false, -1.0f, 0, 0.5f);
+		DrawDebugLine(World, HeadLocation, DesiredCameraLocation, bHit ? FColor::Red : FColor::Green, false, -1.0f, 0, 1.0f);
+		if (bHit)
+		{
+			DrawDebugPoint(World, HitResult.ImpactPoint, 10.0f, FColor::Yellow, false, -1.0f, 0);
+		}
+	}
+#endif
 }
 
 void ABackroomsCharacter::UpdateFootsteps(float DeltaTime)

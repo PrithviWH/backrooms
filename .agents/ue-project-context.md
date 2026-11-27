@@ -33,7 +33,7 @@
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
 | GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
 | PlayerController | `BP_BackroomsPlayerController` (derives from native `ABackroomsPlayerController`, `IA_Pause` handling, pause menu toggling, input mode & mouse cursor control) |
-| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system, mouse sensitivity & invert Y integration) |
+| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system, mouse sensitivity & invert Y integration, native first-person camera collision prevention) |
 | HUD / UI | `WBP_BackroomsHUD` (minimalist liminal horror UI with flashlight status, level intro, interaction prompts; stamina bar removed) |
 | Pause Menu | `WBP_PauseMenu` (derives from native `UBackroomsPauseMenu`, 70% dark horror overlay, Resume, Settings, Quit) |
 | Settings Menu | `WBP_SettingsMenu` (derives from native `UBackroomsSettingsMenu`, 85% dark horror overlay, Audio/Graphics/Controls tabs, live 0.5s FPS counter) |
@@ -58,6 +58,17 @@
   * **Spatialized 3D Attenuation:** Custom `USoundAttenuation` with NaturalSound falloff ($3500\text{ cm}$ / $35\text{ m}$), distance Low-Pass Filter ($600$–$3500\text{ cm}$ from $20\text{ kHz}$ to $800\text{ Hz}$), and visibility-channel wall occlusion ($350\text{ Hz}$ LPF, $0.40$ volume through walls).
   * **Ambient Sickly Breathing:** Attached `BreathingAudioComponent` (`freesound_community-sickly-breathing-83152`) with 3D attenuation ($2500\text{ cm}$ falloff, LPF, occlusion), volume dynamically scaling across states ($0.35$ Wander $\to$ $0.55$ Search $\to$ $0.85$ Chase).
   * **Surface Detection:** Ground downward line trace with physical material check (`PM_Carpet` / `SurfaceType1`). Non-repeating shuffle selection across sound sets.
+
+## Camera & Viewport Collision
+* **Native C++ Collision Prevention:** Implemented directly in `ABackroomsCharacter::UpdateCameraCollision(DeltaTime)` evaluated each `Tick`.
+* **Horror Immersion & Anti-Scouting:** Prevents camera near-clipping plane from penetrating wall corners, doorway frames, and corridor intersections, completely eliminating player exploits to scout AI entity locations through geometry.
+* **Sphere Sweep Geometry:**
+  * Probe Radius: `CameraProbeRadius = 12.0f` ($12\text{ cm}$ sphere sweeping along `ECC_Camera`).
+  * Head Pivot: `BaseHeadRelativeLocation = (0.0f, 0.0f, 64.0f)` (or skeletal mesh `head` socket location).
+  * Desired Forward Offset: `DefaultCameraOffset = (15.0f, 0.0f, 0.0f)` forward from head.
+  * Safe Clamp Distance: Clamped between `CameraMinDistance = 10.0f` (and $0\text{ cm}$ on extreme corner penetration) and `DefaultCameraOffset.Size()`.
+  * Smoothing Dynamics: `FMath::VInterpTo` with `CameraSmoothSpeed = 10.0f` ($\approx 15\%$ per frame at 60 FPS) ensures zero jarring camera snaps when entering or exiting wall proximity.
+* **Debug Visualization:** Reflected property `bDrawDebugCameraCollision` for in-editor trace line and sphere visualization (compiled out in Shipping).
 
 ## Input
 **Stack:** Enhanced Input  
