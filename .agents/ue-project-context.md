@@ -1,7 +1,7 @@
 # Backrooms — UE Project Context
 
 **Generated:** 2026-11-25  
-**Engine version:** Unreal Engine 5.8  
+**Engine version:** Unreal Engine 5.8 (Launcher / Binary Build)  
 **Project file:** `Backrooms.uproject`  
 
 ---
@@ -11,7 +11,7 @@
 
 | Module | Host type | Public deps | Private deps | Notes |
 |---|---|---|---|---|
-| `Backrooms` | Runtime | `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput` | *none* | Main gameplay and core C++ module (`ABackroomsGameModeBase`) |
+| `Backrooms` | Runtime | `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput`, `AIModule`, `NavigationSystem`, `GameplayTasks` | *none* | Main gameplay and core C++ module (`ABackroomsGameModeBase`, `ABackroomsAIController`, `UBackroomsGameInstance`, `UBackroomsFunctionLibrary`) |
 
 ## Plugins
 | Plugin | Maturity | Used for |
@@ -31,11 +31,13 @@
 | Role | Class |
 |---|---|
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
+| GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
 | PlayerController | `BP_BackroomsPlayerController` |
 | Pawn / Character | `BP_BackroomsCharacter` (Enhanced Input `IMC_Player`, stamina, head-bob) |
 | HUD / UI | `WBP_BackroomsHUD` (`HorrorUI`) |
 | Entity / Monster | `BP_BackroomsEntity` |
-| AI Controller | `BP_BackroomsAIController` |
+| AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
+| Function Library | `BackroomsFunctionLibrary` (`UBackroomsFunctionLibrary` — camera fade, math, utilities) |
 | Ambient Manager | `BP_Backrooms_AmbientManager` |
 
 ## Input
@@ -46,13 +48,14 @@
 
 ## AI & Navigation
 **Stack:** `GameplayStateTree` + AI Perception (Sight and Hearing)  
-**Navigation:** `NavMeshBoundsVolume_0` covering `L_Backrooms_Main` corridor maze.
+**Navigation:** `NavMeshBoundsVolume_0` covering `L_Backrooms_Main` corridor maze. Native pathing supported via `AIModule` and `NavigationSystem`.
 
 ## Lighting & Rendering
 * **RHI:** DirectX 12 (`PCD3D_SM6`), Substrate materials enabled (`r.Substrate=True`), Ray Tracing enabled.
 * **GI & Shadows:** Lumen dynamic indirect bounce ($1.5$) & diffuse boost ($1.3$); Virtual Shadow Maps enabled.
 * **Exposure:** Unbound `PPV_Backrooms` (`AEM_Histogram`, EV100 bounds `[0.0, 5.0]`, bias $+0.75$).
 * **Corridor Lights:** 216x warm fluorescent PointLights ($300\text{ cd}$, $950\text{ radius}$) and `BP_FlickeringLight` zero-tick fixtures.
+* **Scalability:** Custom `DefaultScalability.ini` configured for low-end / <2GB VRAM targets (Lumen/VSM disabled on Low/Medium, texture pools bounded to 512MB/768MB, TSR resolution scaling).
 
 ## Source control
 **VCS:** Git (`master` branch) with Git LFS for binary `.uasset` / `.umap` assets.
