@@ -31,7 +31,7 @@
 | Role | Class |
 |---|---|
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
-| GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
+| GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`, persistent inventory, level tag progression, safe `SavePlayerState`/`LoadPlayerState` blueprint compatibility stubs) |
 | PlayerController | `BP_BackroomsPlayerController` (derives from native `ABackroomsPlayerController`, `IA_Pause` handling, pause menu toggling, input mode & mouse cursor control) |
 | Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system, mouse sensitivity & invert Y integration, native first-person camera collision prevention) |
 | HUD / UI | `WBP_BackroomsHUD` (minimalist liminal horror UI with flashlight status, level intro, interaction prompts; stamina bar removed) |

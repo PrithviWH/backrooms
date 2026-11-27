@@ -27,6 +27,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Progression")
 	FName CurrentLevelTag;
 
+	/** Saves character state to the GameInstance (stamina parameters preserved for backwards compatibility) */
+	UFUNCTION(BlueprintCallable, Category = "Backrooms|Persistence")
+	void SavePlayerState(float CurrentStamina = 100.0f, float MaxStamina = 100.0f);
+
+	/** Loads persisted character state */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Backrooms|Persistence")
+	void LoadPlayerState(float& OutCurrentStamina, float& OutMaxStamina) const;
+
 	/** Adds an item to the persistent inventory */
 	UFUNCTION(BlueprintCallable, Category = "Backrooms|Persistence")
 	void AddInventoryItem(const FString& ItemId);

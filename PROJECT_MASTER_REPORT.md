@@ -137,9 +137,10 @@ graph TD
     * Back button automatically writes dirty settings to disk via `UBackroomsSaveGame::SaveSettings()`.
 
 ### 2.6 Modular Systems & Triggers
-* **`BP_BackroomsTrigger`** (`/Game/Backrooms/Blueprints/Systems/BP_BackroomsTrigger`):
+* **`BP_BackroomsTrigger`** (`/Game/Backrooms/Blueprints/Systems/Triggers/BP_BackroomsTrigger`):
   * Reusable box trigger volume with configurable gameplay tags (`RequiredTag`).
   * Supports `bOneTimeOnly` execution with automatic trigger deactivation.
+  * Resolved legacy stamina compilation dependencies: Added non-breaking compatibility stubs `SavePlayerState`/`LoadPlayerState` on `UBackroomsGameInstance` and deprecated `SprintTime`/`SprintMeter` on `ABackroomsCharacter`. Blueprint compiles cleanly with `BS_UP_TO_DATE` status and zero PIE warnings.
 * **`BP_FlickeringLight`** (`/Game/Backrooms/Blueprints/Systems/Lighting/BP_FlickeringLight`):
   * **Zero Event Tick**: Uses asynchronous `Set Timer by Function Name`.
   * **Auto-Recovery**: Brief flickers dip to $2000\text{ lm}$, then automatically schedule `RestoreNormalIntensity` ($6000\text{ lm}$) within $0.08\text{ s}$, preventing lights from permanently turning off.

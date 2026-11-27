@@ -82,6 +82,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bWantsToSprint;
 
+	/** Sprint time accumulator (preserved for blueprint backwards compatibility) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Deprecated")
+	float SprintTime;
+
+	/** Sprint meter ratio (preserved for blueprint backwards compatibility) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Deprecated")
+	float SprintMeter;
+
 	/** Delegate fired when sprint state changes */
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnSprintStateChanged OnSprintStateChanged;
