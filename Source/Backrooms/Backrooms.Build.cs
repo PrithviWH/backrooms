@@ -18,6 +18,8 @@ public class Backrooms : ModuleRules
 			"NavigationSystem",
 			"GameplayTasks",
 			"UMG",
+			"Slate",
+			"SlateCore",
 			"PhysicsCore"
 		});
 

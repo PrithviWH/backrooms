@@ -104,7 +104,39 @@ graph TD
   * Deferred recursive pursuit in `OnMoveCompleted` via `SetTimerForNextTick` to prevent call-stack overflows during continuous chase loops.
   * Seamless corridor wandering and player tracking evaluated via `NavMeshBoundsVolume_0`.
 
-### 2.5 Modular Systems & Triggers
+### 2.5 Pause Menu & Settings System (`WBP_PauseMenu` & `WBP_SettingsMenu`)
+* **Core Goal:** Provide a responsive, horror-themed pause menu allowing players to pause gameplay, tweak audio and graphics settings, adjust mouse sensitivity/inversion, and quit cleanly to desktop.
+* **Input Action Integration:**
+  * Created `IA_Pause` (`/Game/Input/Actions/IA_Pause` and duplicate at `/Game/Input/IA_Pause`), configured with `ValueType = Boolean` and `bTriggerWhenPaused = True` so pause input can be evaluated while game simulation is suspended.
+  * Mapped in `IMC_Default` and `IMC_MouseLook` to `Escape` (Keyboard) and `Gamepad_Special_Right` (Start button).
+* **Player Controller Architecture (`ABackroomsPlayerController`):**
+  * Subclassed natively as `ABackroomsPlayerController`, with Blueprint `BP_BackroomsPlayerController` reparented directly to it.
+  * `TogglePauseMenu()`: Evaluates current pause state. If active, removes the menu widget, resets input mode to `FInputModeGameOnly`, hides the mouse cursor, and calls `UGameplayStatics::SetGamePaused(false)`. If unpaused, instantiates `WBP_PauseMenu`, adds to viewport, sets `FInputModeGameAndUI`, reveals cursor, and sets game paused.
+* **Sound Classes & Hierarchy:**
+  * Root Sound Class: `SC_Master` (`/Game/Backrooms/Audio/SoundClasses/SC_Master`).
+  * Child Sound Classes: `SC_SFX` (player footsteps, physical interaction), `SC_Ambience` (fluorescent lights, HVAC hum, room tone), `SC_Entity` (monster footsteps, heavy stomps, sickly breathing, growls).
+  * Sound Mix: `SM_BackroomsVolume` (`/Game/Backrooms/Audio/SM_BackroomsVolume`) with adjusters for all 4 sound classes.
+  * Runtime Volume Scaling: Applied via `UGameplayStatics::SetSoundMixClassOverride(World, SoundMix, SoundClass, Volume, 1.0f, 0.05f, true)` to ensure glitch-free real-time volume transitions.
+* **Persistent Settings (`UBackroomsSaveGame`):**
+  * Saved to slot `BackroomsSettings` with automatic load on startup and save on settings adjustment:
+    * **Audio:** `MasterVolume` ($0.7$), `SFXVolume` ($0.8$), `AmbienceVolume` ($0.6$), `EntityVolume` ($0.8$).
+    * **Graphics:** `OverallQualityLevel` ($2$ = High), `ResolutionScale` ($100.0\%$).
+    * **Controls:** `MouseSensitivity` ($1.0$, range $0.1$–$3.0$), `bInvertY` ($false$).
+  * Character Look Integration: `ABackroomsCharacter::Look` applies `MouseSensitivity` and `bInvertY` directly to yaw and pitch axes.
+* **UI Aesthetic & User Experience:**
+  * **`WBP_PauseMenu` (`UBackroomsPauseMenu`):**
+    * Liminal horror dark background overlay ($70\%$ opacity `#000000`).
+    * Minimalist typographical hierarchy: Resume, Settings, and Quit to Desktop.
+    * Implemented with native Slate widget tree construction fallback so the menu renders out of the box even without UMG asset pre-authoring.
+  * **`WBP_SettingsMenu` (`UBackroomsSettingsMenu`):**
+    * Dark background overlay ($85\%$ opacity `#000000`).
+    * Three tabbed views:
+      * **Audio Tab:** Real-time volume sliders for Master, SFX, Ambience, and AI Entity.
+      * **Graphics Tab:** Scalability quality selector (Low, Medium, High, Epic) applying via `UGameUserSettings`, resolution scale slider ($50\%$ to $100\%$), and live $0.5\text{ s}$ smoothed FPS counter (`GAverageFPS`).
+      * **Controls Tab:** Mouse sensitivity slider ($0.1$–$3.0$), Invert Y-axis toggle, and read-only keybinding cheat-sheet.
+    * Back button automatically writes dirty settings to disk via `UBackroomsSaveGame::SaveSettings()`.
+
+### 2.6 Modular Systems & Triggers
 * **`BP_BackroomsTrigger`** (`/Game/Backrooms/Blueprints/Systems/BP_BackroomsTrigger`):
   * Reusable box trigger volume with configurable gameplay tags (`RequiredTag`).
   * Supports `bOneTimeOnly` execution with automatic trigger deactivation.

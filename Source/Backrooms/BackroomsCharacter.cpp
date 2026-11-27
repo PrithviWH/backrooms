@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsCharacter.h"
+#include "BackroomsSaveGame.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -19,6 +20,8 @@ ABackroomsCharacter::ABackroomsCharacter()
 	, DefaultFOV(90.0f)
 	, SprintFOV(98.0f)
 	, bWantsToSprint(false)
+	, MouseSensitivity(1.0f)
+	, bInvertY(false)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -87,6 +90,13 @@ ABackroomsCharacter::ABackroomsCharacter()
 void ABackroomsCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Load controls preferences from saved settings
+	if (UBackroomsSaveGame* Settings = UBackroomsSaveGame::LoadOrCreateSettings())
+	{
+		MouseSensitivity = Settings->MouseSensitivity;
+		bInvertY = Settings->bInvertY;
+	}
 
 	// Add Input Mapping Context if player controller is available
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -160,8 +170,9 @@ void ABackroomsCharacter::Look(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
+		const float PitchMultiplier = bInvertY ? -1.0f : 1.0f;
+		AddControllerYawInput(LookAxisVector.X * MouseSensitivity);
+		AddControllerPitchInput(LookAxisVector.Y * MouseSensitivity * PitchMultiplier);
 	}
 }
 

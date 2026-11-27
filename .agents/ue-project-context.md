@@ -11,7 +11,7 @@
 
 | Module | Host type | Public deps | Private deps | Notes |
 |---|---|---|---|---|
-| `Backrooms` | Runtime | `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput`, `AIModule`, `NavigationSystem`, `GameplayTasks` | *none* | Main gameplay and core C++ module (`ABackroomsGameModeBase`, `ABackroomsAIController`, `UBackroomsGameInstance`, `UBackroomsFunctionLibrary`) |
+| `Backrooms` | Runtime | `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput`, `AIModule`, `NavigationSystem`, `GameplayTasks`, `Slate`, `SlateCore` | *none* | Main gameplay and core C++ module (`ABackroomsGameModeBase`, `ABackroomsPlayerController`, `ABackroomsAIController`, `ABackroomsPauseMenu`, `ABackroomsSettingsMenu`, `UBackroomsSaveGame`, `UBackroomsGameInstance`, `UBackroomsFunctionLibrary`) |
 
 ## Plugins
 | Plugin | Maturity | Used for |
@@ -32,18 +32,25 @@
 |---|---|
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
 | GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
-| PlayerController | `BP_BackroomsPlayerController` |
-| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system) |
+| PlayerController | `BP_BackroomsPlayerController` (derives from native `ABackroomsPlayerController`, `IA_Pause` handling, pause menu toggling, input mode & mouse cursor control) |
+| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, ungated free sprint 300/600 cm/s with dynamic FOV 90°–98°, footstep audio system, mouse sensitivity & invert Y integration) |
 | HUD / UI | `WBP_BackroomsHUD` (minimalist liminal horror UI with flashlight status, level intro, interaction prompts; stamina bar removed) |
+| Pause Menu | `WBP_PauseMenu` (derives from native `UBackroomsPauseMenu`, 70% dark horror overlay, Resume, Settings, Quit) |
+| Settings Menu | `WBP_SettingsMenu` (derives from native `UBackroomsSettingsMenu`, 85% dark horror overlay, Audio/Graphics/Controls tabs, live 0.5s FPS counter) |
+| Save Game | `BackroomsSaveGame` (`UBackroomsSaveGame`, persistent audio volumes, scalability presets, resolution scale, mouse sensitivity, invert Y) |
 | Entity / Monster | `BP_BackroomsEntity` (derives from native `ABackroomsEntity`, spatialized 3D footstep audio, state-driven cadence/volume, ambient breathing) |
 | AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
 | Function Library | `BackroomsFunctionLibrary` (`UBackroomsFunctionLibrary` — camera fade, math, utilities) |
 | Ambient Manager | `BP_Backrooms_AmbientManager` |
 
 ## Audio & Physics
+* **Sound Classes & Mix:**
+  * Root Sound Class: `SC_Master` located in `/Game/Backrooms/Audio/SoundClasses/SC_Master`.
+  * Child Sound Classes: `SC_SFX` (player footsteps, physical interaction), `SC_Ambience` (fluorescent lights, HVAC, room tone), `SC_Entity` (monster footsteps, heavy stomps, sickly breathing, growls).
+  * Sound Mix: `SM_BackroomsVolume` (`/Game/Backrooms/Audio/SM_BackroomsVolume`) with runtime volume overrides applied smoothly via `UGameplayStatics::SetSoundMixClassOverride`.
 * **Physical Materials:** `PM_Carpet` (`Friction=0.75`, `StaticFriction=0.75`, `SurfaceType=SurfaceType1` "Carpet") assigned to `M_Backrooms_Carpet` and inherited by `MI_Backrooms_Carpet`.
-* **Player Footstep Audio:** Implemented natively in `ABackroomsCharacter` with distance-based stride accumulation (`BaseStepDistance=150cm`, `SprintStepDistance=180cm`), ground line-tracing with physical material evaluation, random pitch modulation ($0.95$–$1.05$), velocity-interpolated volume ($0.4$ walk, $0.7$ sprint), and soft Berber carpet samples (`Step1`–`Step5` in `Content/Backrooms/Audio/Foot-steps/Footsteps/`) with non-repeating shuffle selection. Default fallback to concrete steps (`freeeverythingxx-walking-on-concrete-ver-2-268513`).
-* **Entity Footstep & Breathing Audio System:** Implemented natively in `ABackroomsEntity`:
+* **Player Footstep Audio:** Implemented natively in `ABackroomsCharacter` with distance-based stride accumulation (`BaseStepDistance=150cm`, `SprintStepDistance=180cm`), ground line-tracing with physical material evaluation, random pitch modulation ($0.95$–$1.05$), velocity-interpolated volume ($0.4$ walk, $0.7$ sprint), and soft Berber carpet samples (`Step1`–`Step5` in `Content/Backrooms/Audio/Foot-steps/Footsteps/`) with non-repeating shuffle selection. Default fallback to concrete steps (`freeeverythingxx-walking-on-concrete-ver-2-268513`). Routed through `SC_SFX`.
+* **Entity Footstep & Breathing Audio System:** Implemented natively in `ABackroomsEntity`, routed through `SC_Entity`:
   * **Dynamic Cadence & Stride:** Stride distance and timing dynamically vary by operational AI state:
     * *Idle Wander* ($180\text{ cm/s}$): $175\text{ cm}$ stride ($\sim 1.0\text{ s}$ per step), volume $0.55$, deep ominous pitch ($0.80$–$0.88$).
     * *Search* ($240\text{ cm/s}$): $145\text{ cm}$ stride ($\sim 0.6\text{ s}$ per step), volume $0.72$, tense calculated pitch ($0.78$–$0.85$).
@@ -54,9 +61,14 @@
 
 ## Input
 **Stack:** Enhanced Input  
-**Mapping contexts:** `/Game/Input/IMC_Player`  
-**Input Actions:** `IA_Move`, `IA_Look`, `IA_Sprint`, `IA_Jump`  
-**Added by:** `BP_BackroomsCharacter` on possession.
+**Mapping contexts:** `/Game/Input/IMC_Default`, `/Game/Input/IMC_Player`, `/Game/Input/IMC_MouseLook`  
+**Input Actions:**
+* `IA_Move`: 2D Vector (WASD / Left Stick).
+* `IA_Look`: 2D Vector (Mouse / Right Stick) with sensitivity scaling and Y-axis inversion.
+* `IA_Sprint`: Free ungated sprint toggle / hold.
+* `IA_Jump`: Jump impulse.
+* `IA_Pause`: Digital bool with `bTriggerWhenPaused=True`, mapped to `Escape` (Keyboard) and `Gamepad_Special_Right` (Start button).
+**Added by:** `BP_BackroomsPlayerController` on possession.
 
 ## AI & Navigation
 * **Architecture:** Native `ABackroomsAIController` with derived Blueprint `BP_BackroomsAIController` controlling `BP_BackroomsEntity`.

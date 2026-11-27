@@ -144,6 +144,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movement")
 	bool GetWantsToSprint() const { return bWantsToSprint; }
 
+	/** Mouse sensitivity multiplier (0.1 to 3.0, default 1.0) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Controls")
+	float MouseSensitivity;
+
+	/** Whether vertical look axis is inverted */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Controls")
+	bool bInvertY;
+
+	UFUNCTION(BlueprintCallable, Category = "Controls")
+	void SetMouseSensitivity(float InSensitivity) { MouseSensitivity = FMath::Clamp(InSensitivity, 0.1f, 3.0f); }
+
+	UFUNCTION(BlueprintCallable, Category = "Controls")
+	void SetInvertY(bool bInInvertY) { bInvertY = bInInvertY; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
