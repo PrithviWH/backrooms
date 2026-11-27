@@ -33,7 +33,7 @@
 | GameMode | `BP_BackroomsGameMode` (derives from native `ABackroomsGameModeBase`) |
 | GameInstance | `BackroomsGameInstance` (`UBackroomsGameInstance`) |
 | PlayerController | `BP_BackroomsPlayerController` |
-| Pawn / Character | `BP_BackroomsCharacter` (Enhanced Input `IMC_Player`, stamina, head-bob) |
+| Pawn / Character | `BP_BackroomsCharacter` (derives from native `ABackroomsCharacter`, Enhanced Input `IMC_Player`, stamina, head-bob) |
 | HUD / UI | `WBP_BackroomsHUD` (`HorrorUI`) |
 | Entity / Monster | `BP_BackroomsEntity` |
 | AI Controller | `BP_BackroomsAIController` (derives from native `ABackroomsAIController`) |
@@ -51,8 +51,8 @@
 **Navigation:** `NavMeshBoundsVolume_0` covering `L_Backrooms_Main` corridor maze. Native pathing supported via `AIModule` and `NavigationSystem`.
 
 ## Lighting & Rendering
-* **RHI:** DirectX 12 (`PCD3D_SM6`), Substrate materials enabled (`r.Substrate=True`), Ray Tracing enabled.
-* **GI & Shadows:** Lumen dynamic indirect bounce ($1.5$) & diffuse boost ($1.3$); Virtual Shadow Maps enabled.
+* **RHI:** Default DirectX 11 (`PCD3D_SM5`) with DirectX 12 (`PCD3D_SM6`) fallback/support; Substrate materials intentionally disabled (`r.Substrate=False`) for <2GB VRAM Low-tier target compatibility and DX11 fallback.
+* **GI & Shadows:** Lumen dynamic indirect bounce ($1.5$) & diffuse boost ($1.3$); Virtual Shadow Maps enabled on High/Epic tiers (disabled on Low/Medium per `DefaultScalability.ini`).
 * **Exposure:** Unbound `PPV_Backrooms` (`AEM_Histogram`, EV100 bounds `[0.0, 5.0]`, bias $+0.75$).
 * **Corridor Lights:** 216x warm fluorescent PointLights ($300\text{ cd}$, $950\text{ radius}$) and `BP_FlickeringLight` zero-tick fixtures.
 * **Scalability:** Custom `DefaultScalability.ini` configured for low-end / <2GB VRAM targets (Lumen/VSM disabled on Low/Medium, texture pools bounded to 512MB/768MB, TSR resolution scaling).

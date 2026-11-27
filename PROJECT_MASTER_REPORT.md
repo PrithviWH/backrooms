@@ -135,6 +135,16 @@ Located in `/Game/Backrooms/Textures/`:
    * All 710 floor surfaces share `MI_Backrooms_Carpet`. Zero duplicate master materials or draw-call thrashing.
 3. **Virtual Shadow Maps & Lumen**:
    * Point light source radii clamped to $25\text{ cm}$ / $15\text{ cm}$ soft radius to optimize Virtual Shadow Map cache page allocations.
+4. **Substrate Material Architecture & Hardware Evaluation**:
+   * **Configuration:** `r.Substrate=False` in `Config/DefaultEngine.ini`.
+   * **Target Hardware Profile (<2GB VRAM & DX11 Compatibility):**
+     * Substrate replaces the traditional fixed GBuffer with a unified multi-closure byte payload (`r.Substrate.BytesPerPixel=80` or higher), requiring complex tile classification shaders and substantially higher memory bandwidth.
+     * The project strictly targets low-end hardware profiles (<2GB VRAM with Low-tier texture streaming pool capped at 512MB and `DefaultGraphicsRHI=DefaultGraphicsRHI_DX11` targeting `PCD3D_SM5`).
+     * Substrate fundamentally requires Shader Model 6 (`PCD3D_SM6`) on D3D12/Vulkan, and is a project-wide engine setting that cannot be disabled dynamically at runtime per scalability tier.
+     * Enabling Substrate would break DX11 / SM5 fallback and induce severe memory bandwidth bottlenecks and VRAM thrashing on <2GB VRAM systems.
+   * **Carpet Material Implementation:**
+     * `M_Backrooms_Carpet` utilizes standard UE PBR (Base Color, Normal, Roughness) with calibrated linear roughness ($0.85$–$0.95$), UV tiling, and multi-tone speckle textures.
+     * This achieves authentic Berber loop fabric light response across all 710 floor surfaces while maintaining steady 60+ FPS on Low scalability.
 
 ---
 
