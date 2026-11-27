@@ -44,6 +44,19 @@ ABackroomsAIController::ABackroomsAIController()
 
 	Perception->ConfigureSense(*SightConfig);
 	Perception->SetDominantSense(SightConfig->GetSenseImplementation());
+
+	// Initialize Blackboard key selectors with default names and type filters
+	AIStateKey.SelectedKeyName = FName(TEXT("AIState"));
+	AIStateKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(ABackroomsAIController, AIStateKey), StaticEnum<EBackroomsAIState>());
+
+	TargetActorKey.SelectedKeyName = FName(TEXT("TargetActor"));
+	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(ABackroomsAIController, TargetActorKey), AActor::StaticClass());
+
+	HasTargetKey.SelectedKeyName = FName(TEXT("HasTarget"));
+	HasTargetKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(ABackroomsAIController, HasTargetKey));
+
+	TargetLocationKey.SelectedKeyName = FName(TEXT("TargetLocation"));
+	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(ABackroomsAIController, TargetLocationKey));
 }
 
 void ABackroomsAIController::OnPossess(APawn* InPawn)
@@ -58,6 +71,18 @@ void ABackroomsAIController::OnPossess(APawn* InPawn)
 	{
 		UBlackboardComponent* BB = nullptr;
 		UseBlackboard(BlackboardAsset, BB);
+	}
+
+	// Resolve key selectors against the active BlackboardData
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		if (const UBlackboardData* BBData = BB->GetBlackboardAsset())
+		{
+			AIStateKey.ResolveSelectedKey(*BBData);
+			TargetActorKey.ResolveSelectedKey(*BBData);
+			HasTargetKey.ResolveSelectedKey(*BBData);
+			TargetLocationKey.ResolveSelectedKey(*BBData);
+		}
 	}
 
 	if (UAIPerceptionComponent* Perception = GetAIPerceptionComponent())
@@ -85,8 +110,9 @@ void ABackroomsAIController::Tick(float DeltaTime)
 	{
 		if (UBlackboardComponent* BB = GetBlackboardComponent())
 		{
-			// Read AIState directly from the Blackboard component (justifying BB usage)
-			uint8 StateVal = BB->GetValueAsEnum(TEXT("AIState"));
+			// Read AIState directly from the Blackboard component using type-safe selector
+			const FName StateKey = AIStateKey.SelectedKeyName.IsNone() ? FName(TEXT("AIState")) : AIStateKey.SelectedKeyName;
+			uint8 StateVal = BB->GetValueAsEnum(StateKey);
 			EBackroomsAIState StateFromBB = static_cast<EBackroomsAIState>(StateVal);
 			FString StateStr;
 			FColor StateColor = FColor::Green;
@@ -120,8 +146,14 @@ void ABackroomsAIController::OnMoveCompleted(FAIRequestID RequestID, const FPath
 
 	if (CurrentState == EBackroomsAIState::Chase && TargetPlayer)
 	{
-		// Continuously follow target in active chase
-		MoveToActor(TargetPlayer, 80.0f);
+		// Defer to next tick to prevent re-entrant synchronous recursion in OnMoveCompleted
+		GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			if (CurrentState == EBackroomsAIState::Chase && TargetPlayer)
+			{
+				MoveToActor(TargetPlayer, 80.0f);
+			}
+		});
 	}
 	else if (CurrentState == EBackroomsAIState::Search)
 	{
@@ -242,7 +274,8 @@ void ABackroomsAIController::MoveToRandomReachablePoint(float Radius)
 
 		if (UBlackboardComponent* BB = GetBlackboardComponent())
 		{
-			BB->SetValueAsVector(TEXT("TargetLocation"), RandomLocation.Location);
+			const FName LocationKey = TargetLocationKey.SelectedKeyName.IsNone() ? FName(TEXT("TargetLocation")) : TargetLocationKey.SelectedKeyName;
+			BB->SetValueAsVector(LocationKey, RandomLocation.Location);
 		}
 	}
 }
@@ -262,7 +295,8 @@ void ABackroomsAIController::MoveToReachablePointNear(const FVector& Center, flo
 
 		if (UBlackboardComponent* BB = GetBlackboardComponent())
 		{
-			BB->SetValueAsVector(TEXT("TargetLocation"), RandomLocation.Location);
+			const FName LocationKey = TargetLocationKey.SelectedKeyName.IsNone() ? FName(TEXT("TargetLocation")) : TargetLocationKey.SelectedKeyName;
+			BB->SetValueAsVector(LocationKey, RandomLocation.Location);
 		}
 	}
 }
@@ -282,19 +316,24 @@ void ABackroomsAIController::UpdateBlackboardKeys()
 {
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
-		BB->SetValueAsEnum(TEXT("AIState"), static_cast<uint8>(CurrentState));
+		const FName StateKey = AIStateKey.SelectedKeyName.IsNone() ? FName(TEXT("AIState")) : AIStateKey.SelectedKeyName;
+		const FName TargetKey = TargetActorKey.SelectedKeyName.IsNone() ? FName(TEXT("TargetActor")) : TargetActorKey.SelectedKeyName;
+		const FName HasTargetK = HasTargetKey.SelectedKeyName.IsNone() ? FName(TEXT("HasTarget")) : HasTargetKey.SelectedKeyName;
+		const FName LocationKey = TargetLocationKey.SelectedKeyName.IsNone() ? FName(TEXT("TargetLocation")) : TargetLocationKey.SelectedKeyName;
+
+		BB->SetValueAsEnum(StateKey, static_cast<uint8>(CurrentState));
 
 		if (TargetPlayer)
 		{
-			BB->SetValueAsObject(TEXT("TargetActor"), TargetPlayer);
-			BB->SetValueAsBool(TEXT("HasTarget"), true);
+			BB->SetValueAsObject(TargetKey, TargetPlayer);
+			BB->SetValueAsBool(HasTargetK, true);
 		}
 		else
 		{
-			BB->ClearValue(TEXT("TargetActor"));
-			BB->SetValueAsBool(TEXT("HasTarget"), false);
+			BB->ClearValue(TargetKey);
+			BB->SetValueAsBool(HasTargetK, false);
 		}
 
-		BB->SetValueAsVector(TEXT("TargetLocation"), LastKnownPlayerLocation);
+		BB->SetValueAsVector(LocationKey, LastKnownPlayerLocation);
 	}
 }

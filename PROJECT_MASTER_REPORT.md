@@ -64,8 +64,20 @@ graph TD
 
 ### 2.4 Entity & AI System (`BP_BackroomsEntity` & `BP_BackroomsAIController`)
 * **Entity Pawn:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsEntity`
-* **AI Controller:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsAIController`
-* **Perception & State:** Configured with AI Perception (Sight/Hearing) and basic wander/chase state machine ready for custom behavior tree expansion.
+* **AI Controller:** `/Game/Backrooms/Blueprints/AI/BP_BackroomsAIController` (reparented directly to native C++ `ABackroomsAIController`).
+* **Type-Safe Blackboard Key Architecture:**
+  * Replaced all legacy hardcoded string literals (`TEXT("AIState")`, `TEXT("TargetActor")`, `TEXT("HasTarget")`, `TEXT("TargetLocation")`) with type-safe `FBlackboardKeySelector` fields exposed in `Category = "AI|Blackboard"`:
+    * `AIStateKey`: Initialized to `AIState` with enum filtering for `EBackroomsAIState`.
+    * `TargetActorKey`: Initialized to `TargetActor` with object class filtering for `AActor`.
+    * `HasTargetKey`: Initialized to `HasTarget` with boolean filtering.
+    * `TargetLocationKey`: Initialized to `TargetLocation` with vector filtering.
+  * In `OnPossess`, resolves key IDs and names dynamically against the active `UBlackboardData` via `ResolveSelectedKey(*BBData)` fetched from `GetBlackboardAsset()`.
+  * Safe accessor fallback: reads and writes evaluate `SelectedKeyName.IsNone()` to guarantee resilience even if unassigned in editor defaults.
+* **Perception & State Machine:**
+  * AI Perception Sight Sense configured for a $45^\circ$ forward cone and $18\text{ s}$ memory.
+  * Adaptive movement speeds: Wander at $180\text{ cm/s}$, Chase at $450\text{ cm/s}$.
+  * Deferred recursive pursuit in `OnMoveCompleted` via `SetTimerForNextTick` to prevent call-stack overflows during continuous chase loops.
+  * Seamless corridor wandering and player tracking evaluated via `NavMeshBoundsVolume_0`.
 
 ### 2.5 Modular Systems & Triggers
 * **`BP_BackroomsTrigger`** (`/Game/Backrooms/Blueprints/Systems/BP_BackroomsTrigger`):
@@ -195,8 +207,9 @@ flowchart LR
 1. **Audio Ambience & Soundscape**:
    * Add continuous low-frequency fluorescent fixture hum ($60\text{ Hz}$ electrical buzz) using attenuation radius on ceiling fixtures.
    * Add distant ambient sound cues (creaking, distant thuds).
-2. **Physical Materials & Footsteps**:
-   * Create `PM_Carpet` (`UPhysicalMaterial`) and assign to `M_Backrooms_Carpet`.
-   * Add line-trace footstep audio notify in `BP_BackroomsCharacter` to play soft fabric carpet footsteps instead of default generic footsteps.
-3. **Entity AI Patrol & Chase**:
-   * Implement a Behavior Tree / StateTree for `BP_BackroomsEntity` with corridor wander waypoints and player detection triggers.
+2. **Physical Materials & Footsteps** *(Completed)*:
+   * Created `PM_Carpet` (`UPhysicalMaterial`) and assigned to `M_Backrooms_Carpet` / `MI_Backrooms_Carpet`.
+   * Native line-trace footstep audio implemented in `ABackroomsCharacter` playing randomized Berber carpet footsteps with speed-interpolated volume and pitch variation.
+3. **Entity AI Patrol & Chase** *(Core Refactor Complete)*:
+   * Native `ABackroomsAIController` refactored to type-safe `FBlackboardKeySelector` key access with strict enum, object, bool, and vector filters.
+   * Reparented `BP_BackroomsAIController` and verified in `L_Backrooms_Main` PIE with $45^\circ$ sight cone perception and deferred chase recursion. Optional expansion into advanced StateTree tasks as needed.

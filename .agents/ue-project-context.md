@@ -51,8 +51,15 @@
 **Added by:** `BP_BackroomsCharacter` on possession.
 
 ## AI & Navigation
-**Stack:** `GameplayStateTree` + AI Perception (Sight and Hearing)  
-**Navigation:** `NavMeshBoundsVolume_0` covering `L_Backrooms_Main` corridor maze. Native pathing supported via `AIModule` and `NavigationSystem`.
+* **Architecture:** Native `ABackroomsAIController` with derived Blueprint `BP_BackroomsAIController` controlling `BP_BackroomsEntity`.
+* **Type-Safe Blackboard Selectors:** Eliminates fragile string literals via reflected `FBlackboardKeySelector` properties:
+  * `AIStateKey`: Enum filter constrained to `EBackroomsAIState` (`Idle`, `Wander`, `Chase`, `Search`).
+  * `TargetActorKey`: Object filter constrained to `AActor` (`TargetPlayer`).
+  * `HasTargetKey`: Bool filter.
+  * `TargetLocationKey`: Vector filter for reachable random and search destination points.
+  * Automatic key resolution on possess via `ResolveSelectedKey(*BBData)` with `IsNone()` fallbacks.
+* **Perception:** Forward sight cone ($45^\circ$, $18\text{ s}$ memory), speed scaling ($180\text{ cm/s}$ wander, $450\text{ cm/s}$ chase).
+* **Navigation:** `NavMeshBoundsVolume_0` covering `L_Backrooms_Main` corridor maze with native pathing via `AIModule` and `NavigationSystem`.
 
 ## Lighting & Rendering
 * **RHI:** Default DirectX 11 (`PCD3D_SM5`) with DirectX 12 (`PCD3D_SM6`) fallback/support; Substrate materials intentionally disabled (`r.Substrate=False`) for <2GB VRAM Low-tier target compatibility and DX11 fallback.

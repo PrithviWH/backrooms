@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AIController.h"
 #include "Perception/AIPerceptionTypes.h"
+#include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BackroomsAIController.generated.h"
 
 class UAIPerceptionComponent;
@@ -38,6 +39,22 @@ public:
 	/** Current AI operational state */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|State")
 	EBackroomsAIState CurrentState;
+
+	/** Blackboard key selector for AI operational state */
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Blackboard")
+	FBlackboardKeySelector AIStateKey;
+
+	/** Blackboard key selector for target player actor */
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Blackboard")
+	FBlackboardKeySelector TargetActorKey;
+
+	/** Blackboard key selector for whether entity has an active target */
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Blackboard")
+	FBlackboardKeySelector HasTargetKey;
+
+	/** Blackboard key selector for target/wander location */
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Blackboard")
+	FBlackboardKeySelector TargetLocationKey;
 
 	/** Optional BehaviorTree asset to run on possess */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BehaviorTree")
