@@ -48,13 +48,22 @@ graph TD
 
 ### 2.2 Player Controller & HUD Lifecycle (`BP_BackroomsPlayerController`)
 * **Asset Location:** `/Game/Backrooms/Blueprints/Systems/BP_BackroomsPlayerController`
-* **Deterministic Execution Sequence:**
+* **Race-Condition-Free Deterministic Execution Sequence:**
   1. `Event OnPossess` fires upon possession.
-  2. Validates the possessed pawn (`Cast to BP_BackroomsCharacter`).
-  3. Checks if `HorrorUI` widget reference already exists; instantiates only if null.
-  4. Adds widget to viewport and caches reference.
-  5. Binds stamina and sprint delegates on the possessed pawn.
-  6. Refreshes initial HUD values immediately on first possession (eliminating HUD unresponsiveness on start).
+  2. **Type Validation**: Validates the possessed pawn via `CastToBP_BackroomsCharacter`. If invalid/null, logs a descriptive warning and safely aborts HUD setup.
+  3. **Defensive Delegate Cleanup**: If a previous character was possessed (`CurrentCharacter` is valid), calls `UnbindCharacter` on `WBP_BackroomsHUD` to unbind stale event dispatchers.
+  4. **Pawn Reference Tracking**: Caches the valid possessed character in `CurrentCharacter`.
+  5. **Null-Safe HUD Instantiation / Reuse**:
+     - If `BackroomsHUD` is invalid/null, creates `WBP_BackroomsHUD` with owning player `self`.
+     - Performs an explicit null check on the created widget (logging an error on creation failure).
+     - Assigns to `BackroomsHUD` and executes `AddToPlayerScreen`.
+     - If `BackroomsHUD` already exists (e.g. re-possession mid-game or level reload), reuses the existing widget without duplicate instantiation.
+  6. **Delegate Binding**: Calls `SetupCharacter` on `BackroomsHUD` with the current character to bind stamina and flashlight event dispatchers.
+  7. **Deferred Initial Refresh (`0.1s` Timer)**: Schedules `SetTimerbyFunctionName` calling `RefreshHUD` after $0.1\text{ s}$, ensuring the character's `BeginPlay` and game-instance state restoration have completely finished before values populate.
+  8. **`RefreshHUD` Function**: Validates `BackroomsHUD` and `CurrentCharacter`, calls `GetCurrentStamina` directly on `BP_BackroomsCharacter`, and immediately pushes the normalized stamina ratio to `OnSprintMeterUpdated`.
+* **Character Stamina Safeguards (`BP_BackroomsCharacter`)**:
+  - `GetCurrentStamina` pure function safely clamps and computes ratio `(SprintMeter / SprintTime)`, defending against zero/negative `SprintTime`.
+  - `BeginPlay` validates stamina bounds ($> 0.0$), executes `RestorePlayerStateFromGameInstance`, and logs initialization state.
 
 ### 2.3 GameMode Routing (`BP_BackroomsGameMode`)
 * **Asset Location:** `/Game/Backrooms/Blueprints/Systems/BP_BackroomsGameMode`
