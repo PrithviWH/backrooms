@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsSaveGame.h"
+#include "BackroomsAssetManager.h"
 #include "BackroomsCharacter.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
@@ -26,6 +27,9 @@ UBackroomsSaveGame::UBackroomsSaveGame()
 
 UBackroomsSaveGame* UBackroomsSaveGame::LoadOrCreateSettings()
 {
+	static FCriticalSection LoadSaveLock;
+	FScopeLock Lock(&LoadSaveLock);
+
 	if (UGameplayStatics::DoesSaveGameExist(SlotName, 0))
 	{
 		if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, 0))
@@ -54,7 +58,7 @@ UBackroomsSaveGame* UBackroomsSaveGame::LoadOrCreateSettings()
 		NewSettings->ResolutionScale = FMath::Clamp(CurrentScale, 50.0f, 100.0f);
 	}
 
-	SaveSettings(NewSettings);
+	UGameplayStatics::AsyncSaveGameToSlot(NewSettings, SlotName, 0);
 	return NewSettings;
 }
 
@@ -65,7 +69,11 @@ bool UBackroomsSaveGame::SaveSettings(UBackroomsSaveGame* InSettings)
 		return false;
 	}
 
-	return UGameplayStatics::SaveGameToSlot(InSettings, SlotName, 0);
+	static FCriticalSection SaveGameLock;
+	FScopeLock Lock(&SaveGameLock);
+
+	UGameplayStatics::AsyncSaveGameToSlot(InSettings, SlotName, 0);
+	return true;
 }
 
 void UBackroomsSaveGame::ApplyAllSettings(UObject* WorldContextObject, UBackroomsSaveGame* InSettings)
@@ -80,6 +88,12 @@ void UBackroomsSaveGame::ApplyAllSettings(UObject* WorldContextObject, UBackroom
 	ApplyControlsSettings(WorldContextObject, InSettings->MouseSensitivity, InSettings->bInvertY);
 }
 
+TObjectPtr<USoundMix> UBackroomsSaveGame::CachedSoundMix = nullptr;
+TObjectPtr<USoundClass> UBackroomsSaveGame::CachedSC_Master = nullptr;
+TObjectPtr<USoundClass> UBackroomsSaveGame::CachedSC_SFX = nullptr;
+TObjectPtr<USoundClass> UBackroomsSaveGame::CachedSC_Ambience = nullptr;
+TObjectPtr<USoundClass> UBackroomsSaveGame::CachedSC_Entity = nullptr;
+
 void UBackroomsSaveGame::ApplyAudioSettings(UObject* WorldContextObject, float InMaster, float InSFX, float InAmbience, float InEntity)
 {
 	if (!WorldContextObject)
@@ -87,38 +101,53 @@ void UBackroomsSaveGame::ApplyAudioSettings(UObject* WorldContextObject, float I
 		return;
 	}
 
-	static USoundMix* SoundMix = nullptr;
-	if (!SoundMix)
+	if (!CachedSoundMix)
 	{
-		SoundMix = LoadObject<USoundMix>(nullptr, TEXT("/Game/Backrooms/Audio/SM_BackroomsVolume.SM_BackroomsVolume"));
+		CachedSoundMix = UBackroomsAssetManager::Get().BackroomsSoundMix.LoadSynchronous();
 	}
 
-	if (SoundMix)
+	if (CachedSoundMix)
 	{
-		UGameplayStatics::PushSoundMixModifier(WorldContextObject, SoundMix);
+		UGameplayStatics::PushSoundMixModifier(WorldContextObject, CachedSoundMix);
 
 		// SC_Master
-		if (USoundClass* SC_Master = LoadObject<USoundClass>(nullptr, TEXT("/Game/Backrooms/Audio/SoundClasses/SC_Master.SC_Master")))
+		if (!CachedSC_Master)
 		{
-			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, SoundMix, SC_Master, FMath::Clamp(InMaster, 0.0f, 1.0f), 1.0f, 0.0f, true);
+			CachedSC_Master = UBackroomsAssetManager::Get().MasterSoundClass.LoadSynchronous();
+		}
+		if (CachedSC_Master)
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, CachedSoundMix, CachedSC_Master, FMath::Clamp(InMaster, 0.0f, 1.0f), 1.0f, 0.0f, true);
 		}
 
 		// SC_SFX
-		if (USoundClass* SC_SFX = LoadObject<USoundClass>(nullptr, TEXT("/Game/Backrooms/Audio/SoundClasses/SC_SFX.SC_SFX")))
+		if (!CachedSC_SFX)
 		{
-			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, SoundMix, SC_SFX, FMath::Clamp(InSFX, 0.0f, 1.0f), 1.0f, 0.0f, true);
+			CachedSC_SFX = UBackroomsAssetManager::Get().SFXSoundClass.LoadSynchronous();
+		}
+		if (CachedSC_SFX)
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, CachedSoundMix, CachedSC_SFX, FMath::Clamp(InSFX, 0.0f, 1.0f), 1.0f, 0.0f, true);
 		}
 
 		// SC_Ambience
-		if (USoundClass* SC_Ambience = LoadObject<USoundClass>(nullptr, TEXT("/Game/Backrooms/Audio/SoundClasses/SC_Ambience.SC_Ambience")))
+		if (!CachedSC_Ambience)
 		{
-			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, SoundMix, SC_Ambience, FMath::Clamp(InAmbience, 0.0f, 1.0f), 1.0f, 0.0f, true);
+			CachedSC_Ambience = UBackroomsAssetManager::Get().AmbienceSoundClass.LoadSynchronous();
+		}
+		if (CachedSC_Ambience)
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, CachedSoundMix, CachedSC_Ambience, FMath::Clamp(InAmbience, 0.0f, 1.0f), 1.0f, 0.0f, true);
 		}
 
 		// SC_Entity
-		if (USoundClass* SC_Entity = LoadObject<USoundClass>(nullptr, TEXT("/Game/Backrooms/Audio/SoundClasses/SC_Entity.SC_Entity")))
+		if (!CachedSC_Entity)
 		{
-			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, SoundMix, SC_Entity, FMath::Clamp(InEntity, 0.0f, 1.0f), 1.0f, 0.0f, true);
+			CachedSC_Entity = UBackroomsAssetManager::Get().EntitySoundClass.LoadSynchronous();
+		}
+		if (CachedSC_Entity)
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, CachedSoundMix, CachedSC_Entity, FMath::Clamp(InEntity, 0.0f, 1.0f), 1.0f, 0.0f, true);
 		}
 	}
 }

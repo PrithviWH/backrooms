@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsPlayerController.h"
+#include "BackroomsAssetManager.h"
+#include "BackroomsGameInstance.h"
 #include "BackroomsPauseMenu.h"
 #include "BackroomsSaveGame.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
-#include "UObject/ConstructorHelpers.h"
 
 ABackroomsPlayerController::ABackroomsPlayerController()
 	: DefaultMappingContext(nullptr)
@@ -18,21 +19,6 @@ ABackroomsPlayerController::ABackroomsPlayerController()
 	bShowMouseCursor = false;
 	bEnableClickEvents = false;      // false during gameplay to prevent mouse delta interception
 	bEnableMouseOverEvents = false;  // false during gameplay to prevent mouse delta interception
-
-	// Load IA_Pause
-	static ConstructorHelpers::FObjectFinder<UInputAction> PauseFinder(TEXT("/Game/Input/Actions/IA_Pause.IA_Pause"));
-	if (PauseFinder.Succeeded())
-	{
-		PauseAction = PauseFinder.Object;
-	}
-	else
-	{
-		static ConstructorHelpers::FObjectFinder<UInputAction> PauseFinderFallback(TEXT("/Game/Input/IA_Pause.IA_Pause"));
-		if (PauseFinderFallback.Succeeded())
-		{
-			PauseAction = PauseFinderFallback.Object;
-		}
-	}
 
 	PauseMenuClass = UBackroomsPauseMenu::StaticClass();
 }
@@ -50,8 +36,18 @@ void ABackroomsPlayerController::BeginPlay()
 	SetInputMode(InputMode);
 
 	// IMC registration is handled solely by ABackroomsCharacter to prevent duplicate conflict
-	// Apply persistent saved settings here
-	if (UBackroomsSaveGame* Settings = UBackroomsSaveGame::LoadOrCreateSettings())
+	// Apply persistent saved settings via GameInstance to eliminate redundant disk I/O
+	UBackroomsSaveGame* Settings = nullptr;
+	if (UBackroomsGameInstance* GI = GetGameInstance<UBackroomsGameInstance>())
+	{
+		Settings = GI->GetCachedSettings();
+	}
+	else
+	{
+		Settings = UBackroomsSaveGame::LoadOrCreateSettings();
+	}
+
+	if (Settings)
 	{
 		UBackroomsSaveGame::ApplyAllSettings(this, Settings);
 	}
@@ -61,10 +57,16 @@ void ABackroomsPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
+	if (!PauseAction)
+	{
+		PauseAction = UBackroomsAssetManager::Get().PauseAction.LoadSynchronous();
+	}
+
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		if (PauseAction)
 		{
+			PauseAction->bTriggerWhenPaused = true;
 			EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &ABackroomsPlayerController::TogglePauseMenu);
 		}
 	}
@@ -76,21 +78,25 @@ void ABackroomsPlayerController::OpenPauseMenu()
 	bEnableClickEvents = true;
 	bEnableMouseOverEvents = true;
 
-	if (!PauseMenuInstance)
+	if (!PauseMenuInstance || !IsValid(PauseMenuInstance))
 	{
 		TSubclassOf<UUserWidget> ClassToUse = PauseMenuClass ? PauseMenuClass : TSubclassOf<UUserWidget>(UBackroomsPauseMenu::StaticClass());
 		PauseMenuInstance = CreateWidget<UUserWidget>(this, ClassToUse);
 	}
 
-	if (PauseMenuInstance && !PauseMenuInstance->IsInViewport())
+	if (PauseMenuInstance && IsValid(PauseMenuInstance))
 	{
-		PauseMenuInstance->AddToViewport(100);
+		PauseMenuInstance->SetVisibility(ESlateVisibility::Visible);
+		if (!PauseMenuInstance->IsInViewport())
+		{
+			PauseMenuInstance->AddToViewport(100);
+		}
 	}
 
 	SetShowMouseCursor(true);
 
 	FInputModeGameAndUI InputMode;
-	if (PauseMenuInstance)
+	if (PauseMenuInstance && IsValid(PauseMenuInstance))
 	{
 		InputMode.SetWidgetToFocus(PauseMenuInstance->TakeWidget());
 	}
@@ -107,11 +113,20 @@ void ABackroomsPlayerController::ClosePauseMenu()
 	bEnableClickEvents = false;
 	bEnableMouseOverEvents = false;
 
-	if (PauseMenuInstance)
+	if (PauseMenuInstance && IsValid(PauseMenuInstance))
 	{
+		if (UBackroomsPauseMenu* PauseMenu = Cast<UBackroomsPauseMenu>(PauseMenuInstance))
+		{
+			if (PauseMenu->SettingsMenuInstance && PauseMenu->SettingsMenuInstance->IsInViewport())
+			{
+				PauseMenu->SettingsMenuInstance->RemoveFromParent();
+				PauseMenu->SettingsMenuInstance = nullptr;
+			}
+		}
+
 		PauseMenuInstance->RemoveFromParent();
-		PauseMenuInstance = nullptr;
 	}
+	PauseMenuInstance = nullptr;
 
 	SetShowMouseCursor(false);
 
@@ -123,12 +138,16 @@ void ABackroomsPlayerController::ClosePauseMenu()
 
 void ABackroomsPlayerController::TogglePauseMenu()
 {
-	if (PauseMenuInstance && PauseMenuInstance->IsInViewport())
+	if (PauseMenuInstance && IsValid(PauseMenuInstance) && PauseMenuInstance->IsInViewport())
 	{
 		ClosePauseMenu();
 	}
 	else
 	{
+		if (PauseMenuInstance && !IsValid(PauseMenuInstance))
+		{
+			PauseMenuInstance = nullptr;
+		}
 		OpenPauseMenu();
 	}
 }

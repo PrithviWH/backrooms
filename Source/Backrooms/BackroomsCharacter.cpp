@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsCharacter.h"
+#include "BackroomsAssetManager.h"
+#include "BackroomsGameInstance.h"
 #include "BackroomsSaveGame.h"
+#include "BackroomsFootstepDataAsset.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -13,7 +16,6 @@
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
-#include "UObject/ConstructorHelpers.h"
 #include "DrawDebugHelpers.h"
 
 ABackroomsCharacter::ABackroomsCharacter()
@@ -82,73 +84,91 @@ ABackroomsCharacter::ABackroomsCharacter()
 	FootstepDistanceAccumulator = 0.0f;
 	LastCarpetSoundIndex = -1;
 	LastDefaultSoundIndex = -1;
+	FootstepData = nullptr;
+}
 
-	// Populate default assets from project content
-	static ConstructorHelpers::FObjectFinder<UPhysicalMaterial> CarpetMatObj(TEXT("/Game/Backrooms/Materials/PM_Carpet"));
-	if (CarpetMatObj.Succeeded())
+void ABackroomsCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	// Skip asset loading during Class Default Object (CDO) construction to prevent startup blocking
+	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		CarpetPhysicalMaterial = CarpetMatObj.Object;
+		return;
 	}
 
-	static ConstructorHelpers::FObjectFinder<USoundBase> Step1Obj(TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step1"));
-	if (Step1Obj.Succeeded()) { CarpetFootstepSounds.Add(Step1Obj.Object); }
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> Step2Obj(TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step2"));
-	if (Step2Obj.Succeeded()) { CarpetFootstepSounds.Add(Step2Obj.Object); }
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> Step3Obj(TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step3"));
-	if (Step3Obj.Succeeded()) { CarpetFootstepSounds.Add(Step3Obj.Object); }
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> Step4Obj(TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step4"));
-	if (Step4Obj.Succeeded()) { CarpetFootstepSounds.Add(Step4Obj.Object); }
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> Step5Obj(TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step5"));
-	if (Step5Obj.Succeeded()) { CarpetFootstepSounds.Add(Step5Obj.Object); }
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultStepObj(TEXT("/Game/Backrooms/Audio/Foot-steps/freeeverythingxx-walking-on-concrete-ver-2-268513"));
-	if (DefaultStepObj.Succeeded()) { DefaultFootstepSounds.Add(DefaultStepObj.Object); }
-
-	// Default Enhanced Input assets
-	static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/Input/IMC_Default.IMC_Default"));
-	if (IMCFinder.Succeeded())
+	// Populate from primary footstep data asset if assigned
+	if (FootstepData)
 	{
-		DefaultMappingContext = IMCFinder.Object;
+		if (!CarpetPhysicalMaterial && FootstepData->CarpetPhysicalMaterial)
+		{
+			CarpetPhysicalMaterial = FootstepData->CarpetPhysicalMaterial;
+		}
+		if (CarpetFootstepSounds.Num() == 0)
+		{
+			CarpetFootstepSounds = FootstepData->CarpetFootstepSounds;
+		}
+		if (DefaultFootstepSounds.Num() == 0)
+		{
+			DefaultFootstepSounds = FootstepData->DefaultFootstepSounds;
+		}
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionFinder(TEXT("/Game/Input/Actions/IA_Move.IA_Move"));
-	if (MoveActionFinder.Succeeded())
+	// Fallback lazy load physical material and sound assets from Asset Manager
+	UBackroomsAssetManager& AssetManager = UBackroomsAssetManager::Get();
+
+	if (!CarpetPhysicalMaterial)
 	{
-		MoveAction = MoveActionFinder.Object;
+		CarpetPhysicalMaterial = AssetManager.CarpetPhysicalMaterial.LoadSynchronous();
+	}
+	if (CarpetFootstepSounds.Num() == 0)
+	{
+		for (const TSoftObjectPtr<USoundBase>& SoftSnd : AssetManager.CarpetFootstepSounds)
+		{
+			if (USoundBase* Snd = SoftSnd.LoadSynchronous())
+			{
+				CarpetFootstepSounds.Add(Snd);
+			}
+		}
+	}
+	if (DefaultFootstepSounds.Num() == 0)
+	{
+		if (USoundBase* DefSnd = AssetManager.ConcreteFootstepSound.LoadSynchronous())
+		{
+			DefaultFootstepSounds.Add(DefSnd);
+		}
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> LookActionFinder(TEXT("/Game/Input/Actions/IA_Look.IA_Look"));
-	if (LookActionFinder.Succeeded())
+	// Fallback lazy load Input Mapping Contexts
+	if (!DefaultMappingContext)
 	{
-		LookAction = LookActionFinder.Object;
+		DefaultMappingContext = AssetManager.DefaultMappingContext.LoadSynchronous();
+	}
+	if (!MouseLookMappingContext)
+	{
+		MouseLookMappingContext = AssetManager.MouseLookMappingContext.LoadSynchronous();
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputMappingContext> MouseIMCFinder(TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
-	if (MouseIMCFinder.Succeeded())
+	// Fallback lazy load Input Actions
+	if (!MoveAction)
 	{
-		MouseLookMappingContext = MouseIMCFinder.Object;
+		MoveAction = AssetManager.MoveAction.LoadSynchronous();
 	}
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> MouseLookActionFinder(TEXT("/Game/Input/Actions/IA_MouseLook.IA_MouseLook"));
-	if (MouseLookActionFinder.Succeeded())
+	if (!LookAction)
 	{
-		MouseLookAction = MouseLookActionFinder.Object;
+		LookAction = AssetManager.LookAction.LoadSynchronous();
 	}
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> JumpActionFinder(TEXT("/Game/Input/Actions/IA_Jump.IA_Jump"));
-	if (JumpActionFinder.Succeeded())
+	if (!MouseLookAction)
 	{
-		JumpAction = JumpActionFinder.Object;
+		MouseLookAction = AssetManager.MouseLookAction.LoadSynchronous();
 	}
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionFinder(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
-	if (SprintActionFinder.Succeeded())
+	if (!JumpAction)
 	{
-		SprintAction = SprintActionFinder.Object;
+		JumpAction = AssetManager.JumpAction.LoadSynchronous();
+	}
+	if (!SprintAction)
+	{
+		SprintAction = AssetManager.SprintAction.LoadSynchronous();
 	}
 }
 
@@ -156,21 +176,21 @@ void ABackroomsCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Load controls preferences from saved settings
-	if (UBackroomsSaveGame* Settings = UBackroomsSaveGame::LoadOrCreateSettings())
+	// Load controls preferences from cached GameInstance settings (prevents disk I/O race conditions)
+	UBackroomsSaveGame* Settings = nullptr;
+	if (UBackroomsGameInstance* GI = GetGameInstance<UBackroomsGameInstance>())
+	{
+		Settings = GI->GetCachedSettings();
+	}
+	else
+	{
+		Settings = UBackroomsSaveGame::LoadOrCreateSettings();
+	}
+
+	if (Settings)
 	{
 		MouseSensitivity = Settings->MouseSensitivity;
 		bInvertY = Settings->bInvertY;
-	}
-
-	// Fallback load if null
-	if (!DefaultMappingContext)
-	{
-		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
-	}
-	if (!MouseLookMappingContext)
-	{
-		MouseLookMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
 	}
 
 	// Add Input Mapping Contexts if player controller is available
@@ -197,11 +217,11 @@ void ABackroomsCharacter::PawnClientRestart()
 	// Ensure MappingContexts are valid
 	if (!DefaultMappingContext)
 	{
-		DefaultMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_Default.IMC_Default"));
+		DefaultMappingContext = UBackroomsAssetManager::Get().DefaultMappingContext.LoadSynchronous();
 	}
 	if (!MouseLookMappingContext)
 	{
-		MouseLookMappingContext = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Input/IMC_MouseLook.IMC_MouseLook"));
+		MouseLookMappingContext = UBackroomsAssetManager::Get().MouseLookMappingContext.LoadSynchronous();
 	}
 
 	// Add Input Mapping Context to local player subsystem upon possession/restart
@@ -226,25 +246,26 @@ void ABackroomsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	// Fallback load input actions if not set on CDO/instance
+	UBackroomsAssetManager& AssetManager = UBackroomsAssetManager::Get();
 	if (!MoveAction)
 	{
-		MoveAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Move.IA_Move"));
+		MoveAction = AssetManager.MoveAction.LoadSynchronous();
 	}
 	if (!LookAction)
 	{
-		LookAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Look.IA_Look"));
+		LookAction = AssetManager.LookAction.LoadSynchronous();
 	}
 	if (!MouseLookAction)
 	{
-		MouseLookAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_MouseLook.IA_MouseLook"));
+		MouseLookAction = AssetManager.MouseLookAction.LoadSynchronous();
 	}
 	if (!JumpAction)
 	{
-		JumpAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Jump.IA_Jump"));
+		JumpAction = AssetManager.JumpAction.LoadSynchronous();
 	}
 	if (!SprintAction)
 	{
-		SprintAction = LoadObject<UInputAction>(nullptr, TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+		SprintAction = AssetManager.SprintAction.LoadSynchronous();
 	}
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
@@ -364,6 +385,12 @@ void ABackroomsCharacter::UpdateCameraCollision(float DeltaTime)
 	{
 		CurrentCameraOffset = FMath::VInterpTo(CurrentCameraOffset, DefaultCameraOffset, DeltaTime, CameraSmoothSpeed);
 		FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset);
+		return;
+	}
+
+	// Early exit if camera is already at rest at default offset and character is stationary
+	if (CurrentCameraOffset.Equals(DefaultCameraOffset, 0.5f) && GetVelocity().SizeSquared() < 100.0f)
+	{
 		return;
 	}
 

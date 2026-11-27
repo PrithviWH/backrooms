@@ -13,6 +13,7 @@ class UInputMappingContext;
 class UInputAction;
 class UPhysicalMaterial;
 class USoundBase;
+class UFootstepDataAsset;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintStateChanged, bool, bIsSprinting);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsToggled);
@@ -130,6 +131,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> FlashlightAction;
 
+	/** Footstep data asset grouping sounds and physical material */
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	TObjectPtr<UFootstepDataAsset> FootstepData;
+
 	/** Physical Material associated with carpet flooring */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Footsteps")
 	TObjectPtr<UPhysicalMaterial> CarpetPhysicalMaterial;
@@ -205,6 +210,7 @@ public:
 	FVector GetDesiredCameraLocation() const { return DesiredCameraLocation; }
 
 protected:
+	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;

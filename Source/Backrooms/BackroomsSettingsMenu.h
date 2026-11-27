@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Styling/SlateTypes.h"
 #include "BackroomsSettingsMenu.generated.h"
 
 class UButton;
@@ -12,11 +13,11 @@ class UTextBlock;
 class UCheckBox;
 class UWidgetSwitcher;
 class UBackroomsSaveGame;
+class UBackroomsPauseMenu;
 
 /**
  * Settings Menu Widget for Backrooms 5.8.
- * Features Audio (Master, SFX, Ambience, AI Entity), Graphics (Scalability presets, Resolution scale, live FPS counter),
- * Controls (Mouse sensitivity, Invert Y, read-only keybindings), and settings persistence.
+ * Authentic liminal space horror terminal design featuring Audio, Graphics, and Controls configuration.
  */
 UCLASS()
 class BACKROOMS_API UBackroomsSettingsMenu : public UUserWidget
@@ -90,6 +91,10 @@ public:
 	UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly, Category = "UI|Controls")
 	TObjectPtr<UCheckBox> InvertYCheckBox;
 
+	/** Parent pause menu instance that spawned this settings menu */
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	TWeakObjectPtr<UBackroomsPauseMenu> ParentPauseMenu;
+
 	// --- Logic & Callbacks ---
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void SwitchToTab(int32 TabIndex);
@@ -123,6 +128,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void OnInvertYChanged(bool bIsChecked);
+
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 protected:
 	virtual void NativeConstruct() override;
@@ -161,4 +168,16 @@ private:
 	TSharedPtr<STextBlock> SlateSFXText;
 	TSharedPtr<STextBlock> SlateAmbienceText;
 	TSharedPtr<STextBlock> SlateEntityText;
+
+	// Dynamic tab header widgets
+	TSharedPtr<SBorder> TabBorders[3];
+	TSharedPtr<STextBlock> TabTexts[3];
+
+	// Preset button widgets for segmented control
+	TSharedPtr<SBorder> PresetBorders[4];
+	TSharedPtr<STextBlock> PresetTexts[4];
+
+	void UpdateTabVisuals();
+	void UpdatePresetVisuals();
+	void PlayTactileClick();
 };

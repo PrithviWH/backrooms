@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsEntity.h"
+#include "BackroomsAssetManager.h"
+#include "BackroomsFootstepDataAsset.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -8,7 +10,6 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Sound/SoundAttenuation.h"
 #include "Sound/SoundBase.h"
-#include "UObject/ConstructorHelpers.h"
 
 ABackroomsEntity::ABackroomsEntity()
 	: WanderStepDistance(175.0f)
@@ -21,6 +22,8 @@ ABackroomsEntity::ABackroomsEntity()
 	, FootstepDistanceAccumulator(0.0f)
 	, LastCarpetSoundIndex(-1)
 	, LastHeavySoundIndex(-1)
+	, NextFootstepPoolIndex(0)
+	, LastFootstepTime(0.0f)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -47,78 +50,26 @@ ABackroomsEntity::ABackroomsEntity()
 	BreathingAtten.OcclusionTraceChannel = ECC_Visibility;
 	BreathingAtten.OcclusionVolumeAttenuation = 0.35f;
 
-	// Load Physical Material: PM_Carpet
-	static ConstructorHelpers::FObjectFinder<UPhysicalMaterial> CarpetMatFinder(
-		TEXT("/Game/Backrooms/Materials/PM_Carpet.PM_Carpet"));
-	if (CarpetMatFinder.Succeeded())
-	{
-		CarpetPhysicalMaterial = CarpetMatFinder.Object;
-	}
-
-	// Load Carpet Footsteps (Step1 - Step5)
-	const TCHAR* CarpetAssetPaths[] = {
-		TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step1.Step1"),
-		TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step2.Step2"),
-		TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step3.Step3"),
-		TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step4.Step4"),
-		TEXT("/Game/Backrooms/Audio/Foot-steps/Footsteps/Step5.Step5")
-	};
-	for (const TCHAR* Path : CarpetAssetPaths)
-	{
-		ConstructorHelpers::FObjectFinder<USoundBase> SoundFinder(Path);
-		if (SoundFinder.Succeeded())
-		{
-			CarpetFootstepSounds.Add(SoundFinder.Object);
-		}
-	}
-
-	// Load Heavy Monster Footsteps
-	static ConstructorHelpers::FObjectFinder<USoundBase> MonsterFootstepFinder(
-		TEXT("/Game/Backrooms/Audio/Foot-steps/lordsonny-monster-footstep-162883.lordsonny-monster-footstep-162883"));
-	if (MonsterFootstepFinder.Succeeded())
-	{
-		HeavyFootstepSounds.Add(MonsterFootstepFinder.Object);
-	}
-
-	static ConstructorHelpers::FObjectFinder<USoundBase> HeavyWalkingFinder(
-		TEXT("/Game/Backrooms/Audio/Foot-steps/universfield-heavy-walking-footsteps-352771.universfield-heavy-walking-footsteps-352771"));
-	if (HeavyWalkingFinder.Succeeded())
-	{
-		HeavyFootstepSounds.Add(HeavyWalkingFinder.Object);
-	}
-
-	// Load Default Fallback Footstep
-	static ConstructorHelpers::FObjectFinder<USoundBase> ConcreteFootstepFinder(
-		TEXT("/Game/Backrooms/Audio/Foot-steps/freeeverythingxx-walking-on-concrete-ver-2-268513.freeeverythingxx-walking-on-concrete-ver-2-268513"));
-	if (ConcreteFootstepFinder.Succeeded())
-	{
-		DefaultFootstepSound = ConcreteFootstepFinder.Object;
-	}
-
-	// Load Breathing SFX
-	static ConstructorHelpers::FObjectFinder<USoundBase> BreathingSoundFinder(
-		TEXT("/Game/Backrooms/Audio/Ghost_sfx/freesound_community-sickly-breathing-83152.freesound_community-sickly-breathing-83152"));
-	if (BreathingSoundFinder.Succeeded())
-	{
-		BreathingSound = BreathingSoundFinder.Object;
-	}
-
-	// Load Growl SFX
-	static ConstructorHelpers::FObjectFinder<USoundBase> GrowlSoundFinder(
-		TEXT("/Game/Backrooms/Audio/Ghost_sfx/mixkit-zombie-monster-growl-1973.mixkit-zombie-monster-growl-1973"));
-	if (GrowlSoundFinder.Succeeded())
-	{
-		GrowlSound = GrowlSoundFinder.Object;
-	}
-
-	SetupAttenuationSettings();
+	FootstepData = nullptr;
 }
 
 void ABackroomsEntity::SetupAttenuationSettings()
 {
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+
+	// Only create if it doesn't exist
 	if (!FootstepAttenuation)
 	{
-		FootstepAttenuation = NewObject<USoundAttenuation>(this, TEXT("EntityFootstepAttenuation"));
+		FootstepAttenuation = NewObject<USoundAttenuation>(
+			this,
+			USoundAttenuation::StaticClass(),
+			TEXT("EntityFootstepAttenuation"),
+			RF_Transient
+		);
+
 		if (FootstepAttenuation)
 		{
 			FSoundAttenuationSettings& Atten = FootstepAttenuation->Attenuation;
@@ -145,19 +96,113 @@ void ABackroomsEntity::SetupAttenuationSettings()
 void ABackroomsEntity::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
+
+	// Skip asset loading during Class Default Object (CDO) construction to prevent startup blocking
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+
 	SetupAttenuationSettings();
+
+	// Populate from primary footstep data asset if assigned
+	if (FootstepData)
+	{
+		if (!CarpetPhysicalMaterial && FootstepData->CarpetPhysicalMaterial)
+		{
+			CarpetPhysicalMaterial = FootstepData->CarpetPhysicalMaterial;
+		}
+		if (CarpetFootstepSounds.Num() == 0)
+		{
+			CarpetFootstepSounds = FootstepData->CarpetFootstepSounds;
+		}
+		if (!DefaultFootstepSound && FootstepData->DefaultFootstepSounds.Num() > 0)
+		{
+			DefaultFootstepSound = FootstepData->DefaultFootstepSounds[0];
+		}
+		if (HeavyFootstepSounds.Num() == 0)
+		{
+			HeavyFootstepSounds = FootstepData->HeavyFootstepSounds;
+		}
+	}
+
+	// Fallback lazy load assets on spawned instances from Asset Manager
+	UBackroomsAssetManager& AssetManager = UBackroomsAssetManager::Get();
+
+	if (!CarpetPhysicalMaterial)
+	{
+		CarpetPhysicalMaterial = AssetManager.CarpetPhysicalMaterial.LoadSynchronous();
+	}
+	if (CarpetFootstepSounds.Num() == 0)
+	{
+		for (const TSoftObjectPtr<USoundBase>& SoftSnd : AssetManager.CarpetFootstepSounds)
+		{
+			if (USoundBase* Snd = SoftSnd.LoadSynchronous())
+			{
+				CarpetFootstepSounds.Add(Snd);
+			}
+		}
+	}
+	if (HeavyFootstepSounds.Num() == 0)
+	{
+		for (const TSoftObjectPtr<USoundBase>& SoftSnd : AssetManager.HeavyFootstepSounds)
+		{
+			if (USoundBase* Snd = SoftSnd.LoadSynchronous())
+			{
+				HeavyFootstepSounds.Add(Snd);
+			}
+		}
+	}
+	if (!DefaultFootstepSound)
+	{
+		DefaultFootstepSound = AssetManager.ConcreteFootstepSound.LoadSynchronous();
+	}
+	if (!BreathingSound)
+	{
+		BreathingSound = AssetManager.SicklyBreathingSound.LoadSynchronous();
+	}
+	if (!GrowlSound)
+	{
+		GrowlSound = AssetManager.ZombieGrowlSound.LoadSynchronous();
+	}
+
+	// Initialize pre-allocated audio component pool for footsteps
+	if (FootstepAudioPool.Num() == 0)
+	{
+		for (int32 i = 0; i < 3; ++i)
+		{
+			UAudioComponent* PoolComp = NewObject<UAudioComponent>(this, *FString::Printf(TEXT("FootstepAudioComp_%d"), i));
+			if (PoolComp)
+			{
+				PoolComp->bAutoActivate = false;
+				PoolComp->SetupAttachment(RootComponent);
+				PoolComp->RegisterComponent();
+				if (FootstepAttenuation)
+				{
+					PoolComp->AttenuationSettings = FootstepAttenuation;
+				}
+				FootstepAudioPool.Add(PoolComp);
+			}
+		}
+	}
 }
 
 void ABackroomsEntity::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Initialize ambient breathing
-	if (BreathingAudioComponent && BreathingSound)
+	// Defer audio playback to next tick so Blueprint overrides have fully initialized all property references
+	if (UWorld* World = GetWorld())
 	{
-		BreathingAudioComponent->SetSound(BreathingSound);
-		BreathingAudioComponent->SetVolumeMultiplier(0.35f);
-		BreathingAudioComponent->Play();
+		World->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			if (BreathingAudioComponent && BreathingSound && !IsActorBeingDestroyed())
+			{
+				BreathingAudioComponent->SetSound(BreathingSound);
+				BreathingAudioComponent->SetVolumeMultiplier(0.35f);
+				BreathingAudioComponent->Play();
+			}
+		});
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[ABackroomsEntity] Initialized entity at %s with %d carpet and %d heavy footstep samples."),
@@ -228,9 +273,22 @@ void ABackroomsEntity::UpdateFootsteps(float DeltaTime)
 		break;
 	}
 
+	// Clamp minimum inter-step interval to 0.15s (max 6.7 steps/sec)
+	if (UWorld* World = GetWorld())
+	{
+		if (World->GetTimeSeconds() - LastFootstepTime < 0.15f)
+		{
+			return;
+		}
+	}
+
 	if (FootstepDistanceAccumulator >= CurrentStepDistance)
 	{
 		FootstepDistanceAccumulator = 0.0f;
+		if (UWorld* World = GetWorld())
+		{
+			LastFootstepTime = World->GetTimeSeconds();
+		}
 		TriggerFootstep(CachedAIState);
 	}
 }
@@ -238,26 +296,38 @@ void ABackroomsEntity::UpdateFootsteps(float DeltaTime)
 void ABackroomsEntity::TriggerFootstep(EBackroomsAIState State)
 {
 	const float CapsuleHalfHeight = GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
-	const FVector TraceStart = GetActorLocation();
-	const FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, CapsuleHalfHeight + 35.0f);
+	FVector ImpactPoint = GetActorLocation() - FVector(0.0f, 0.0f, CapsuleHalfHeight);
+	bool bIsCarpet = true;
 
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(EntityFootstepTrace), false, this);
-	QueryParams.bReturnPhysicalMaterial = true;
-
-	FHitResult HitResult;
-	const bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
-
-	if (!bHit)
+	if (State != EBackroomsAIState::Chase)
 	{
-		return;
-	}
+		const FVector TraceStart = GetActorLocation();
+		const FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, CapsuleHalfHeight + 35.0f);
 
-	UPhysicalMaterial* HitPhysMat = HitResult.PhysMaterial.Get();
-	const bool bIsCarpet = (HitPhysMat != nullptr) && (
-		HitPhysMat == CarpetPhysicalMaterial ||
-		HitPhysMat->SurfaceType == SurfaceType1 ||
-		HitPhysMat->GetName().Contains(TEXT("Carpet"))
-	);
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(EntityFootstepTrace), false, this);
+		QueryParams.bReturnPhysicalMaterial = true;
+
+		FHitResult HitResult;
+		const bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+
+		if (!bHit)
+		{
+			return;
+		}
+
+		ImpactPoint = HitResult.ImpactPoint;
+		UPhysicalMaterial* HitPhysMat = HitResult.PhysMaterial.Get();
+		bIsCarpet = (HitPhysMat != nullptr) && (
+			HitPhysMat == CarpetPhysicalMaterial ||
+			HitPhysMat->SurfaceType == SurfaceType1 ||
+			HitPhysMat->GetName().Contains(TEXT("Carpet"))
+		);
+	}
+	else
+	{
+		// Disable expensive occlusion line trace during chase to eliminate CPU spikes
+		bIsCarpet = true;
+	}
 
 	// Choose candidate sound set
 	USoundBase* SoundToPlay = nullptr;
@@ -344,19 +414,41 @@ void ABackroomsEntity::TriggerFootstep(EBackroomsAIState State)
 		break;
 	}
 
-	// Play spatialized 3D sound at floor impact point
-	UGameplayStatics::PlaySoundAtLocation(
-		this,
-		SoundToPlay,
-		HitResult.ImpactPoint,
-		FRotator::ZeroRotator,
-		Volume,
-		Pitch,
-		0.0f,
-		FootstepAttenuation,
-		nullptr,
-		this
-	);
+	// Play spatialized 3D sound at floor impact point using audio pool
+	UAudioComponent* AudioComp = nullptr;
+	if (FootstepAudioPool.Num() > 0)
+	{
+		AudioComp = FootstepAudioPool[NextFootstepPoolIndex];
+		NextFootstepPoolIndex = (NextFootstepPoolIndex + 1) % FootstepAudioPool.Num();
+	}
 
-	OnFootstepPlayed(SoundToPlay, HitResult.ImpactPoint, Volume, Pitch, bIsCarpet, State);
+	if (AudioComp)
+	{
+		AudioComp->SetWorldLocation(ImpactPoint);
+		AudioComp->SetSound(SoundToPlay);
+		AudioComp->SetVolumeMultiplier(Volume);
+		AudioComp->SetPitchMultiplier(Pitch);
+		if (FootstepAttenuation)
+		{
+			AudioComp->AttenuationSettings = FootstepAttenuation;
+		}
+		AudioComp->Play();
+	}
+	else
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			SoundToPlay,
+			ImpactPoint,
+			FRotator::ZeroRotator,
+			Volume,
+			Pitch,
+			0.0f,
+			FootstepAttenuation,
+			nullptr,
+			this
+		);
+	}
+
+	OnFootstepPlayed(SoundToPlay, ImpactPoint, Volume, Pitch, bIsCarpet, State);
 }

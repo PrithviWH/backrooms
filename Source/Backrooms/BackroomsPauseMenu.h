@@ -11,7 +11,7 @@ class UButton;
 
 /**
  * Pause Menu Widget for Backrooms 5.8.
- * Provides Resume, Settings, and Quit to Desktop functionality with Backrooms horror aesthetic.
+ * Liminal horror terminal aesthetic with Resume, Settings, and Quit functionality.
  */
 UCLASS()
 class BACKROOMS_API UBackroomsPauseMenu : public UUserWidget
@@ -47,12 +47,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void HandleQuitClicked();
 
+	/** Keyboard handling: Pressing Escape or Gamepad Start resumes gameplay */
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 
 private:
-	FButtonStyle DarkButtonStyle;
-	FButtonStyle CreateDarkButtonStyle() const;
+	FButtonStyle LiminalButtonStyle;
+	FButtonStyle DangerButtonStyle;
+
+	FButtonStyle CreateLiminalButtonStyle(bool bDanger = false) const;
+	void PlayTactileClick();
 };

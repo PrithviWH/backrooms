@@ -6,6 +6,8 @@
 #include "Engine/GameInstance.h"
 #include "BackroomsGameInstance.generated.h"
 
+class UBackroomsSaveGame;
+
 /**
  * Custom GameInstance that persists gameplay state (inventory, level progression)
  * across level transitions (e.g. from L_Backrooms_Main to backroomsLevel2).
@@ -18,6 +20,12 @@ class BACKROOMS_API UBackroomsGameInstance : public UGameInstance
 
 public:
 	UBackroomsGameInstance();
+
+	virtual void Init() override;
+
+	/** Retrieves the cached save game settings, loading once if not yet initialized */
+	UFUNCTION(BlueprintCallable, Category = "Backrooms|Settings")
+	UBackroomsSaveGame* GetCachedSettings();
 
 	/** Persistent inventory item identifiers */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
@@ -42,4 +50,9 @@ public:
 	/** Checks if an item is present in persistent inventory */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Backrooms|Persistence")
 	bool HasInventoryItem(const FString& ItemId) const;
+
+protected:
+	/** Cached persistent settings to avoid redundant disk I/O and race conditions */
+	UPROPERTY()
+	TObjectPtr<UBackroomsSaveGame> CachedSettings;
 };

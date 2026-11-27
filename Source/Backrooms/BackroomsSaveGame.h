@@ -71,4 +71,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Settings", meta = (WorldContext = "WorldContextObject"))
 	static void ApplyControlsSettings(UObject* WorldContextObject, float InSensitivity, bool bInInvertY);
+
+private:
+	// Static cache for sound mix and sound classes to eliminate synchronous loads on settings adjustments
+	static TObjectPtr<USoundMix> CachedSoundMix;
+	static TObjectPtr<USoundClass> CachedSC_Master;
+	static TObjectPtr<USoundClass> CachedSC_SFX;
+	static TObjectPtr<USoundClass> CachedSC_Ambience;
+	static TObjectPtr<USoundClass> CachedSC_Entity;
 };

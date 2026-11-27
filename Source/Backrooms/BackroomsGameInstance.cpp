@@ -1,10 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BackroomsGameInstance.h"
+#include "BackroomsSaveGame.h"
 
 UBackroomsGameInstance::UBackroomsGameInstance()
 	: CurrentLevelTag(TEXT("Level0"))
+	, CachedSettings(nullptr)
 {
+}
+
+void UBackroomsGameInstance::Init()
+{
+	Super::Init();
+
+	// Single authoritative disk read on startup, cached for all actors
+	CachedSettings = UBackroomsSaveGame::LoadOrCreateSettings();
+}
+
+UBackroomsSaveGame* UBackroomsGameInstance::GetCachedSettings()
+{
+	if (!CachedSettings)
+	{
+		CachedSettings = UBackroomsSaveGame::LoadOrCreateSettings();
+	}
+	return CachedSettings;
 }
 
 void UBackroomsGameInstance::SavePlayerState(float CurrentStamina, float MaxStamina)

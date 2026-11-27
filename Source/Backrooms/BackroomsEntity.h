@@ -11,6 +11,7 @@ class UAudioComponent;
 class USoundBase;
 class USoundAttenuation;
 class UPhysicalMaterial;
+class UFootstepDataAsset;
 
 /**
  * Authoritative Entity / Monster Character for Backrooms.
@@ -30,6 +31,10 @@ public:
 	/** Ambient attached audio component for sickly stalking breathing */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Audio")
 	TObjectPtr<UAudioComponent> BreathingAudioComponent;
+
+	/** Footstep data asset grouping footstep sounds and physical material */
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Footsteps")
+	TObjectPtr<UFootstepDataAsset> FootstepData;
 
 	/** Carpet footstep sounds (soft Berber carpet thuds) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Footsteps")
@@ -112,6 +117,13 @@ protected:
 	/** Indices for non-repeating shuffle */
 	int32 LastCarpetSoundIndex;
 	int32 LastHeavySoundIndex;
+
+	/** Pre-allocated audio component pool for footsteps to avoid spawning overhead and concurrency spikes */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAudioComponent>> FootstepAudioPool;
+
+	int32 NextFootstepPoolIndex;
+	float LastFootstepTime;
 
 	/** Setup attenuation settings programmatically */
 	void SetupAttenuationSettings();

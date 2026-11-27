@@ -36,9 +36,9 @@ ABackroomsAIController::ABackroomsAIController()
 
 	// Configure Sight Sense for "Stealthy Stalker"
 	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("SightConfig"));
-	SightConfig->SightRadius = 1200.0f;                    // Narrower range: ~12m
-	SightConfig->LoseSightRadius = 1800.0f;                // Keep wider than SightRadius so it tracks through corners
-	SightConfig->PeripheralVisionAngleDegrees = 45.0f;     // Narrow 45° cone: player can evade by staying outside forward view
+	SightConfig->SightRadius = 1500.0f;                    // ~15m
+	SightConfig->LoseSightRadius = 2000.0f;                // ~20m
+	SightConfig->PeripheralVisionAngleDegrees = 70.0f;     // 70° cone: prevents strafe-kiting exploit in open corridors
 	SightConfig->SetMaxAge(18.0f);
 	SightConfig->DetectionByAffiliation.bDetectEnemies = true;
 	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
@@ -89,6 +89,7 @@ void ABackroomsAIController::OnPossess(APawn* InPawn)
 
 	if (UAIPerceptionComponent* Perception = GetAIPerceptionComponent())
 	{
+		Perception->OnTargetPerceptionUpdated.RemoveDynamic(this, &ABackroomsAIController::OnTargetPerceptionUpdated);
 		Perception->OnTargetPerceptionUpdated.AddDynamic(this, &ABackroomsAIController::OnTargetPerceptionUpdated);
 	}
 
@@ -111,6 +112,11 @@ void ABackroomsAIController::OnPossess(APawn* InPawn)
 
 void ABackroomsAIController::OnUnPossess()
 {
+	if (UAIPerceptionComponent* Perception = GetAIPerceptionComponent())
+	{
+		Perception->OnTargetPerceptionUpdated.RemoveDynamic(this, &ABackroomsAIController::OnTargetPerceptionUpdated);
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(LostSightTimerHandle);
@@ -180,6 +186,47 @@ void ABackroomsAIController::Tick(float DeltaTime)
 		}
 	}
 #endif
+
+	// Audio-based detection: hear sprinting player within 800cm
+	if (CurrentState != EBackroomsAIState::Chase && GetPawn() && !GetPawn()->IsActorBeingDestroyed())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (APlayerController* PC = World->GetFirstPlayerController())
+			{
+				if (ACharacter* PlayerChar = Cast<ACharacter>(PC->GetPawn()))
+				{
+					if (!PlayerChar->IsActorBeingDestroyed())
+					{
+						const float DistSq = FVector::DistSquared(GetPawn()->GetActorLocation(), PlayerChar->GetActorLocation());
+						const float HearingRadius = 800.0f;
+						if (DistSq <= FMath::Square(HearingRadius))
+						{
+							// Player walking is 300, sprint is 600
+							if (PlayerChar->GetVelocity().Size2D() > 350.0f)
+							{
+								CurrentState = EBackroomsAIState::Chase;
+								TargetPlayer = PlayerChar;
+								bIsChasing = true;
+								LastKnownPlayerLocation = PlayerChar->GetActorLocation();
+
+								if (ChaseSound)
+								{
+									UGameplayStatics::PlaySoundAtLocation(this, ChaseSound, GetPawn()->GetActorLocation());
+								}
+
+								SetEntityMovementSpeed(ChaseSpeed);
+								SetFocus(PlayerChar);
+								MoveToActor(PlayerChar, 80.0f);
+								UpdateBlackboardKeys();
+								UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Heard sprinting footsteps within 800cm! Entering Chase."));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void ABackroomsAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
@@ -289,18 +336,21 @@ void ABackroomsAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulu
 	}
 	else
 	{
-		// SIGHT LOST -> Transition to Search (Long memory: linger near last known location)
+		// SIGHT LOST -> Transition to Search with velocity prediction
 		ClearFocus(EAIFocusPriority::Gameplay);
-		LastKnownPlayerLocation = Stimulus.StimulusLocation;
 		bIsChasing = false;
 		CurrentState = EBackroomsAIState::Search;
 
+		// Velocity prediction: predict player position along their movement vector for 2.0s
+		const FVector PlayerVel = PlayerChar ? PlayerChar->GetVelocity() : FVector::ZeroVector;
+		LastKnownPlayerLocation = Stimulus.StimulusLocation + (PlayerVel * 2.0f);
+
 		SetEntityMovementSpeed(SearchSpeed);
 
-		// Move directly toward last known location
+		// Move directly toward predicted location
 		MoveToLocation(LastKnownPlayerLocation, 60.0f);
 
-		UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Player lost sight! Searching near last known location for %.1f s."), LostSightSearchDuration);
+		UE_LOG(LogTemp, Warning, TEXT("[BackroomsAI] Player lost sight! Searching near predicted location for %.1f s."), LostSightSearchDuration);
 
 		UpdateBlackboardKeys();
 

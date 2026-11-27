@@ -32,13 +32,18 @@ void UBackroomsFunctionLibrary::TransitionToLevelWithFade(const UObject* WorldCo
 		return;
 	}
 
-	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-	if (!World)
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+	if (!World || !World->IsGameWorld())
 	{
 		return;
 	}
 
 	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
 	FadeCameraToBlack(PC, FadeDuration);
 
 	FTimerHandle TransitionTimerHandle;

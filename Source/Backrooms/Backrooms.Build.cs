@@ -20,7 +20,8 @@ public class Backrooms : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"PhysicsCore"
+			"PhysicsCore",
+			"AssetRegistry"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
