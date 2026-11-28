@@ -20,7 +20,7 @@ UBackroomsSaveGame::UBackroomsSaveGame()
 	, EntityVolume(0.80f)
 	, OverallQualityLevel(2) // High default
 	, ResolutionScale(100.0f)
-	, MouseSensitivity(1.0f)
+	, MouseSensitivity(0.20f)
 	, bInvertY(false)
 {
 }
@@ -36,6 +36,11 @@ UBackroomsSaveGame* UBackroomsSaveGame::LoadOrCreateSettings()
 		{
 			if (UBackroomsSaveGame* Settings = Cast<UBackroomsSaveGame>(Loaded))
 			{
+				// Migrate old high sensitivity default (1.0f) to comfortable new default (0.20f)
+				if (FMath::IsNearlyEqual(Settings->MouseSensitivity, 1.0f, 0.05f))
+				{
+					Settings->MouseSensitivity = 0.20f;
+				}
 				return Settings;
 			}
 		}

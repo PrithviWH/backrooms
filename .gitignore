@@ -39,3 +39,7 @@ Config/User*.ini
 Content/FirstPerson/
 Content/Variant_Horror/
 
+
+__pycache__/
+*.pyc
+

@@ -17,9 +17,10 @@ class USoundBase;
 UENUM(BlueprintType)
 enum class EBackroomsAIState : uint8
 {
-	IdleWander UMETA(DisplayName = "Idle Wander"),
-	Chase      UMETA(DisplayName = "Chase"),
-	Search     UMETA(DisplayName = "Search")
+	DistantStalker UMETA(DisplayName = "Distant Stalker"),
+	IdleWander     UMETA(DisplayName = "Idle Wander"),
+	Chase          UMETA(DisplayName = "Chase"),
+	Search         UMETA(DisplayName = "Search")
 };
 
 /**
@@ -104,6 +105,109 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Audio")
 	TObjectPtr<USoundBase> ChaseSound;
 
+	// --- Distant Stalker Encounter Timing & Lifecycle Parameters ---
+
+	/** Minimum distance (cm) for distant stalking sightings (default: 1800cm / 18m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkingMinDistance;
+
+	/** Maximum distance (cm) for distant stalking sightings (default: 3400cm / 34m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkingMaxDistance;
+
+	/** Minimum appearance interval (seconds) after an encounter ends (default: 18.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float AppearanceIntervalMin;
+
+	/** Maximum appearance interval (seconds) after an encounter ends (default: 35.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float AppearanceIntervalMax;
+
+	/** Minimum visible duration (seconds) before entity is allowed to vanish on look-away (default: 2.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float MinVisibleDuration;
+
+	/** Maximum visible duration (seconds) before entity vanishes if player keeps staring (default: 15.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float MaxVisibleDuration;
+
+	/** Seconds player must look away after spotting before entity vanishes into darkness (default: 0.5s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkerVanishLookAwayDelay;
+
+	/** Seconds player must look directly at distant stalker before spotting is confirmed (default: 0.6s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkerSpottedTimeThreshold;
+
+	/** Minimum delay (seconds) before retrying if no valid distant stalking location was found (default: 2.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float FailedSpawnRetryDelayMin;
+
+	/** Maximum delay (seconds) before retrying if no valid distant stalking location was found (default: 4.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float FailedSpawnRetryDelayMax;
+
+	/** Maximum seconds entity will wait at a vantage point if player never looks towards it before relocating (default: 30.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkerUnseenRelocateTimeout;
+
+	/** Close proximity threshold (cm): if player rushes directly towards stalker within this distance, it vanishes into darkness (default: 850cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Stalking")
+	float StalkerCloseProximityThreshold;
+
+	/** Whether player has spotted the current distant stalker */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Stalking")
+	bool bHasPlayerSpottedStalker;
+
+	/** Whether entity is currently vanished / waiting for next stalking sighting */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Stalking")
+	bool bIsStalkerVanished;
+
+	/** Total time current encounter has been visible */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Stalking")
+	float CurrentEncounterVisibleTime;
+
+	/** Validates candidate location with downward ground line trace and capsule overlap test */
+	bool ValidateAndAlignGroundLocation(const FVector& InNavLocation, FVector& OutSpawnLocation);
+
+	/** Finds an optimal distant vantage point visible down a corridor or intersection from player's view */
+	UFUNCTION(BlueprintCallable, Category = "AI|Stalking")
+	bool FindDistantStalkingLocation(const AActor* InPlayerActor, FVector& OutLocation, FRotator& OutRotation);
+
+	/** Teleports entity to a new distant stalking vantage point facing the player */
+	UFUNCTION(BlueprintCallable, Category = "AI|Stalking")
+	bool RelocateToDistantStalkingVantage();
+
+	/** Attempts to spawn the entity at a distant vantage point; retries automatically after short delay on failure */
+	UFUNCTION(BlueprintCallable, Category = "AI|Stalking")
+	void AttemptAppearance();
+
+	/** Makes the entity vanish into darkness after being spotted and looked away from */
+	UFUNCTION(BlueprintCallable, Category = "AI|Stalking")
+	void VanishFromSight(const FString& Reason = TEXT("Player looked away"));
+
+	// --- Evasion & Disengagement Parameters ---
+
+	/** Seconds player must sprint away in opposite direction before entity gives up pursuit (default: 1.2s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Evasion")
+	float EvasionBreakTime;
+
+	/** Minimum distance (cm) between player and monster for sprinting away to trigger disengagement (default: 700cm / 7m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Evasion")
+	float EvasionDistanceThreshold;
+
+	/** Cooldown (seconds) after disengaging before entity can re-acquire target via footsteps (default: 6.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Evasion")
+	float EvasionCooldownDuration;
+
+	/** Maximum continuous chase duration (seconds) before entity fatigues and gives up (default: 12.0s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Evasion")
+	float MaxChaseDuration;
+
+	/** Smartly ceases chase, halts movement, and transitions to search/idle */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	void SmartDisengage(const FString& Reason = TEXT("Player Evaded"));
+
 	/** Sight configuration for AI Perception */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Perception")
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;
@@ -135,8 +239,18 @@ protected:
 	FTimerHandle LostSightTimerHandle;
 	FTimerHandle WanderWaitTimerHandle;
 	FTimerHandle ChaseNextTickTimerHandle;
+	FTimerHandle StalkerAppearanceTimerHandle;
 	FVector LastKnownPlayerLocation;
 
 	void SetEntityMovementSpeed(float Speed);
 	void UpdateBlackboardKeys();
+	void UpdateEvasionCheck(float DeltaTime);
+	void UpdateDistantStalker(float DeltaTime);
+
+	float PlayerEvasionTime;
+	float ChaseDurationTimer;
+	float EvasionReAggroCooldownTimer;
+	float StalkerLookDuration;
+	float StalkerLookAwayDuration;
+	float StalkerUnseenTime;
 };

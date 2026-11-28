@@ -12,6 +12,24 @@ class USoundBase;
 class USoundAttenuation;
 class UPhysicalMaterial;
 class UFootstepDataAsset;
+class UPointLightComponent;
+class UAnimSequence;
+class ABackroomsCharacter;
+
+USTRUCT()
+struct FBackroomsTrackedLight
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UPointLightComponent> LightComponent;
+
+	UPROPERTY(Transient)
+	float BaseIntensity = 0.0f;
+
+	UPROPERTY(Transient)
+	FVector Location = FVector::ZeroVector;
+};
 
 /**
  * Authoritative Entity / Monster Character for Backrooms.
@@ -96,6 +114,100 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|State")
 	EBackroomsAIState CachedAIState;
 
+	// --- Ceiling Light Distortion & Blackout Proximity System ---
+
+	/** Radius (cm) within which ceiling lights begin flickering erratically (default: 14m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|LightDistortion", meta = (ClampMin = "300.0", ClampMax = "3000.0"))
+	float LightFlickerRadius;
+
+	/** Radius (cm) within which ceiling lights directly fail / blackout (default: 5m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|LightDistortion", meta = (ClampMin = "100.0", ClampMax = "1000.0"))
+	float LightBlackoutRadius;
+
+	/** Whether entity distorts and shuts off nearby lights */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|LightDistortion")
+	bool bEnableLightDistortion;
+
+	UFUNCTION(BlueprintCallable, Category = "AI|LightDistortion")
+	void SetLightDistortionEnabled(bool bEnabled) { bEnableLightDistortion = bEnabled; }
+
+	UFUNCTION(BlueprintPure, Category = "AI|LightDistortion")
+	bool IsLightDistortionEnabled() const { return bEnableLightDistortion; }
+
+	// --- Horror Attack & Jumpscare Parameters ---
+
+	/** Maximum distance (cm) to target player to initiate aggressive attack / jumpscare strike (default: 140cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Attack", meta = (ClampMin = "50.0", ClampMax = "300.0"))
+	float AttackRange;
+
+	/** Cooldown (seconds) between attack attempts (default: 3.5s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Attack")
+	float AttackCooldown;
+
+	/** Loud jumpscare scream sound played during attack strike */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Attack")
+	TObjectPtr<USoundBase> AttackScreamSound;
+
+	/** Heavy horror impact hit sound played during attack strike */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Attack")
+	TObjectPtr<USoundBase> AttackHitSound;
+
+	/** Attack animation sequence played on skeletal mesh during strike */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Attack")
+	TObjectPtr<UAnimSequence> AttackAnimation;
+
+	/** Whether entity is currently executing an attack animation */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Attack")
+	bool bIsAttacking;
+
+	/** Triggers aggressive lunging attack, jumpscare audio, animation, and player catch sequence */
+	UFUNCTION(BlueprintCallable, Category = "AI|Attack")
+	bool ExecuteAttack(ABackroomsCharacter* TargetPlayerChar);
+
+	/** Applies pitch-black void shadow material overrides to all skeletal mesh slots to obscure features */
+	UFUNCTION(BlueprintCallable, Category = "AI|Visual")
+	void ApplyShadowVoidMaterial();
+
+	/** Dynamic material instances created from M_EntityShadowVoid */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> DynamicMaterials;
+
+	/** Dark obsidian silhouette color when illuminated by active ceiling light */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	FLinearColor LitSilhouetteColor;
+
+	/** Pure black void color when light is off or in unlit areas */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	FLinearColor UnlitSilhouetteColor;
+
+	/** Roughness when illuminated by light (matte obsidian) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	float LitRoughness;
+
+	/** Roughness when unlit (1.0 = zero specular reflection) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	float UnlitRoughness;
+
+	/** Specular when illuminated by light (0.08) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	float LitSpecular;
+
+	/** Specular when unlit (0.0 = zero highlight) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Visual")
+	float UnlitSpecular;
+
+	/** Whether entity is currently under an active, turned-on ceiling light */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Visual")
+	bool bIsIlluminatedByLight;
+
+	/** Sets stalker visibility and collision during stalking disappearances */
+	UFUNCTION(BlueprintCallable, Category = "AI|Visual")
+	void SetStalkerVisibility(bool bVisible);
+
+	/** Returns whether the entity is currently illuminated by active light */
+	UFUNCTION(BlueprintPure, Category = "AI|Visual")
+	bool IsUnderActiveLight() const { return bIsIlluminatedByLight; }
+
 	/** Event triggered when a footstep is played (for BP extension / VFX) */
 	UFUNCTION(BlueprintImplementableEvent, Category = "AI|Footsteps")
 	void OnFootstepPlayed(USoundBase* Sound, FVector Location, float Volume, float Pitch, bool bIsCarpet, EBackroomsAIState State);
@@ -104,12 +216,34 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void PostInitializeComponents() override;
 	virtual void Tick(float DeltaTime) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Accumulates distance and triggers footsteps at appropriate cadence */
 	void UpdateFootsteps(float DeltaTime);
 
 	/** Executes downward trace, physical material check, and spatialized playback */
 	void TriggerFootstep(EBackroomsAIState State);
+
+	/** Discovers all point lights in the level and records their baseline intensity */
+	void InitializeTrackedLights();
+
+	/** Modulates nearby point light intensities based on distance to entity */
+	void UpdateLightDistortion(float DeltaTime);
+
+	/** Updates dynamic lighting silhouette shading based on local ceiling light illumination */
+	void UpdateLightingSilhouette(float DeltaTime);
+
+	UPROPERTY(Transient)
+	FLinearColor CurrentSilhouetteColor;
+
+	UPROPERTY(Transient)
+	float CurrentRoughness;
+
+	UPROPERTY(Transient)
+	float CurrentSpecular;
+
+	UPROPERTY(Transient)
+	TArray<FBackroomsTrackedLight> TrackedLights;
 
 	/** Distance moved since last footstep */
 	float FootstepDistanceAccumulator;
@@ -124,6 +258,7 @@ protected:
 
 	int32 NextFootstepPoolIndex;
 	float LastFootstepTime;
+	float AttackCooldownTimer;
 
 	/** Setup attenuation settings programmatically */
 	void SetupAttenuationSettings();

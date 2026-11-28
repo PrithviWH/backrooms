@@ -9,6 +9,7 @@
 
 class UCameraComponent;
 class USpotLightComponent;
+class UAudioComponent;
 class UInputMappingContext;
 class UInputAction;
 class UPhysicalMaterial;
@@ -209,6 +210,87 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Camera|Collision")
 	FVector GetDesiredCameraLocation() const { return DesiredCameraLocation; }
 
+	// --- Proximity Heartbeat & Horror Panic ---
+
+	/** Audio component playing internal heartbeat thumping */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Heartbeat")
+	TObjectPtr<UAudioComponent> HeartbeatAudioComponent;
+
+	/** Audio component playing panicked breathing when monster is in close proximity */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Heartbeat")
+	TObjectPtr<UAudioComponent> PanicBreathingAudioComponent;
+
+	/** Heartbeat sound asset */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat")
+	TObjectPtr<USoundBase> HeartbeatSound;
+
+	/** Heavy panicked breathing sound asset */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat")
+	TObjectPtr<USoundBase> PanicBreathingSound;
+
+	/** Maximum distance (cm) at which the entity begins triggering heartbeat audio (default: 25m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat", meta = (ClampMin = "500.0", ClampMax = "5000.0"))
+	float MaxHeartbeatDistance;
+
+	/** Distance (cm) at which heartbeat reaches maximum volume and speed (default: 4m) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat", meta = (ClampMin = "100.0", ClampMax = "1000.0"))
+	float MinHeartbeatDistance;
+
+	/** Maximum volume multiplier for heartbeat */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat", meta = (ClampMin = "0.1", ClampMax = "2.0"))
+	float MaxHeartbeatVolume;
+
+	/** Current normalized horror panic factor (0.0 = calm, 1.0 = maximum panic) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Heartbeat")
+	float CurrentPanicFactor;
+
+	/** Event dispatched when horror panic factor changes */
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnFlashlightToggled OnPanicStateChanged; // or custom delegate, or implementable event below
+
+	/** Event dispatched when horror panic factor updates */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Audio|Heartbeat")
+	void OnPanicFactorUpdated(float PanicFactor);
+
+	UFUNCTION(BlueprintPure, Category = "Audio|Heartbeat")
+	float GetPanicFactor() const { return CurrentPanicFactor; }
+
+	// --- Sight-Gated Horror Audio & Gaze System ---
+
+	/** Audio stinger played when the player first sees the entity in front of them */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Horror")
+	TObjectPtr<USoundBase> SightStingerSound;
+
+	/** Whether the player currently has line-of-sight to the entity in front of their camera */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Horror")
+	bool bPlayerSeesEntity;
+
+	/** Whether sight discovery audio has already triggered for the current encounter */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Horror")
+	bool bHasTriggeredSightAudio;
+
+	/** Resets the sight stinger audio trigger flag for next distant stalking sighting */
+	UFUNCTION(BlueprintCallable, Category = "Audio|Horror")
+	void ResetSightAudioTrigger() { bHasTriggeredSightAudio = false; }
+
+	// --- Direct-Gaze Horror Glitch & Sanity Degradation ---
+
+	/** Current normalized gaze glitch intensity (0.0 = clear, 1.0 = maximum visual glitch/shaking) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera|Horror")
+	float CurrentGazeGlitchFactor;
+
+	/** Triggered when the monster reaches attack range and strikes the player */
+	UFUNCTION(BlueprintCallable, Category = "Horror|Jumpscare")
+	void TriggerJumpscareCaught(class ABackroomsEntity* Attacker);
+
+	/** Event fired when player is caught by entity (for UI / custom BP handling) */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Horror|Jumpscare")
+	void OnJumpscareCaught(ABackroomsEntity* Attacker);
+
+	/** Whether the player is currently experiencing a caught jumpscare / blackout sequence */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Horror|Jumpscare")
+	bool bIsUnderAttack;
+
 protected:
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
@@ -220,13 +302,25 @@ protected:
 	void Look(const FInputActionValue& Value);
 	void UpdateFootsteps(float DeltaTime);
 	void UpdateCameraCollision(float DeltaTime);
+	void UpdateHeartbeat(float DeltaTime);
+	void UpdateGazeDistortion(float DeltaTime);
 
 	float FootstepDistanceAccumulator;
 	int32 LastCarpetSoundIndex;
 	int32 LastDefaultSoundIndex;
 
+	float CurrentHeartbeatVolume;
+	float CurrentBreathingVolume;
+	TWeakObjectPtr<class ABackroomsEntity> CachedNearestEntity;
+
 private:
 	FVector DesiredCameraLocation;
 	FVector CurrentCameraOffset;
 	FVector BaseHeadRelativeLocation;
+
+	FVector RespawnLocation;
+	FRotator RespawnRotation;
+	float GazeTremorTime;
+	float FlashlightBaseIntensity;
+	float LostSightCooldownTimer;
 };

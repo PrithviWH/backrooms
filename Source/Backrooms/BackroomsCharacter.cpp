@@ -17,6 +17,11 @@
 #include "Kismet/GameplayStatics.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "DrawDebugHelpers.h"
+#include "Components/AudioComponent.h"
+#include "EngineUtils.h"
+#include "BackroomsEntity.h"
+#include "BackroomsAtmosphereManager.h"
+#include "Camera/PlayerCameraManager.h"
 
 ABackroomsCharacter::ABackroomsCharacter()
 	: CameraProbeRadius(12.0f)
@@ -38,14 +43,24 @@ ABackroomsCharacter::ABackroomsCharacter()
 	, MaxFootstepPitch(1.05f)
 	, BaseStepDistance(150.0f)
 	, SprintStepDistance(180.0f)
-	, MouseSensitivity(1.0f)
+	, MouseSensitivity(0.20f)
 	, bInvertY(false)
+	, SightStingerSound(nullptr)
+	, bPlayerSeesEntity(false)
+	, bHasTriggeredSightAudio(false)
+	, CurrentGazeGlitchFactor(0.0f)
+	, bIsUnderAttack(false)
 	, FootstepDistanceAccumulator(0.0f)
 	, LastCarpetSoundIndex(-1)
 	, LastDefaultSoundIndex(-1)
 	, DesiredCameraLocation(FVector::ZeroVector)
 	, CurrentCameraOffset(FVector(15.0f, 0.0f, 0.0f))
 	, BaseHeadRelativeLocation(FVector(0.0f, 0.0f, 64.0f))
+	, RespawnLocation(FVector::ZeroVector)
+	, RespawnRotation(FRotator::ZeroRotator)
+	, GazeTremorTime(0.0f)
+	, FlashlightBaseIntensity(1800.0f)
+	, LostSightCooldownTimer(0.0f)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -85,6 +100,26 @@ ABackroomsCharacter::ABackroomsCharacter()
 	LastCarpetSoundIndex = -1;
 	LastDefaultSoundIndex = -1;
 	FootstepData = nullptr;
+
+	// Horror Proximity Heartbeat & Panic Audio (2D non-spatialized direct to player ears)
+	HeartbeatAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("HeartbeatAudioComponent"));
+	HeartbeatAudioComponent->SetupAttachment(RootComponent);
+	HeartbeatAudioComponent->bAutoActivate = false;
+	HeartbeatAudioComponent->bStopWhenOwnerDestroyed = true;
+	HeartbeatAudioComponent->bIsUISound = true;
+
+	PanicBreathingAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("PanicBreathingAudioComponent"));
+	PanicBreathingAudioComponent->SetupAttachment(RootComponent);
+	PanicBreathingAudioComponent->bAutoActivate = false;
+	PanicBreathingAudioComponent->bStopWhenOwnerDestroyed = true;
+	PanicBreathingAudioComponent->bIsUISound = true;
+
+	MaxHeartbeatDistance = 2500.0f;
+	MinHeartbeatDistance = 400.0f;
+	MaxHeartbeatVolume = 0.95f;
+	CurrentPanicFactor = 0.0f;
+	CurrentHeartbeatVolume = 0.0f;
+	CurrentBreathingVolume = 0.0f;
 }
 
 void ABackroomsCharacter::PostInitializeComponents()
@@ -170,11 +205,39 @@ void ABackroomsCharacter::PostInitializeComponents()
 	{
 		SprintAction = AssetManager.SprintAction.LoadSynchronous();
 	}
+
+	// Fallback load Heartbeat and Panic sounds
+	if (!HeartbeatSound)
+	{
+		HeartbeatSound = AssetManager.HeartbeatSound.LoadSynchronous();
+	}
+	if (!PanicBreathingSound)
+	{
+		PanicBreathingSound = AssetManager.OutOfBreathSound.LoadSynchronous();
+	}
+	if (!SightStingerSound)
+	{
+		SightStingerSound = AssetManager.EntitySightStingerSound.LoadSynchronous();
+	}
 }
 
 void ABackroomsCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	RespawnLocation = GetActorLocation();
+	RespawnRotation = Controller ? Controller->GetControlRotation() : GetActorRotation();
+	FlashlightBaseIntensity = FlashlightComponent ? FlashlightComponent->Intensity : 1800.0f;
+
+	// Initialize horror audio components with assigned sounds
+	if (HeartbeatAudioComponent && HeartbeatSound)
+	{
+		HeartbeatAudioComponent->SetSound(HeartbeatSound);
+	}
+	if (PanicBreathingAudioComponent && PanicBreathingSound)
+	{
+		PanicBreathingAudioComponent->SetSound(PanicBreathingSound);
+	}
 
 	// Load controls preferences from cached GameInstance settings (prevents disk I/O race conditions)
 	UBackroomsSaveGame* Settings = nullptr;
@@ -191,6 +254,14 @@ void ABackroomsCharacter::BeginPlay()
 	{
 		MouseSensitivity = Settings->MouseSensitivity;
 		bInvertY = Settings->bInvertY;
+	}
+
+	// Ensure Atmosphere Manager is active in the world for immersive liminal horror audio & location cues
+	if (GetWorld() && !UGameplayStatics::GetActorOfClass(GetWorld(), ABackroomsAtmosphereManager::StaticClass()))
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		GetWorld()->SpawnActor<ABackroomsAtmosphereManager>(ABackroomsAtmosphereManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	// Add Input Mapping Contexts if player controller is available
@@ -363,6 +434,8 @@ void ABackroomsCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	UpdateFootsteps(DeltaTime);
 	UpdateCameraCollision(DeltaTime);
+	UpdateHeartbeat(DeltaTime);
+	UpdateGazeDistortion(DeltaTime);
 
 	// Smooth sprint FOV transition
 	if (FirstPersonCamera)
@@ -371,6 +444,172 @@ void ABackroomsCharacter::Tick(float DeltaTime)
 		const float TargetFOV = (bWantsToSprint && bIsMoving) ? SprintFOV : DefaultFOV;
 		const float NewFOV = FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaTime, 6.0f);
 		FirstPersonCamera->SetFieldOfView(NewFOV);
+	}
+}
+
+void ABackroomsCharacter::UpdateHeartbeat(float DeltaTime)
+{
+	if (!HeartbeatAudioComponent)
+	{
+		return;
+	}
+
+	// Locate nearest monster entity
+	ABackroomsEntity* NearestEntity = CachedNearestEntity.Get();
+	if (!NearestEntity || !IsValid(NearestEntity))
+	{
+		float ClosestDistSq = MAX_FLT;
+		const FVector MyLoc = GetActorLocation();
+
+		for (TActorIterator<ABackroomsEntity> It(GetWorld()); It; ++It)
+		{
+			ABackroomsEntity* Entity = *It;
+			if (Entity && IsValid(Entity))
+			{
+				const float DistSq = FVector::DistSquared(MyLoc, Entity->GetActorLocation());
+				if (DistSq < ClosestDistSq)
+				{
+					ClosestDistSq = DistSq;
+					NearestEntity = Entity;
+				}
+			}
+		}
+		CachedNearestEntity = NearestEntity;
+	}
+
+	float TargetPanic = 0.0f;
+	bool bCanSeeMonsterInFront = false;
+
+	if (NearestEntity && IsValid(NearestEntity) && !NearestEntity->IsActorBeingDestroyed() && !NearestEntity->IsHidden())
+	{
+		const FVector CamLoc = FirstPersonCamera ? FirstPersonCamera->GetComponentLocation() : GetActorLocation();
+		const FVector CamFwd = FirstPersonCamera ? FirstPersonCamera->GetForwardVector() : GetActorForwardVector();
+		const FVector MonsterHead = NearestEntity->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+		const FVector ToMonster = MonsterHead - CamLoc;
+		const float Distance = ToMonster.Size();
+		const FVector DirToMonster = ToMonster / FMath::Max(Distance, 1.0f);
+		const float LookAtDot = FVector::DotProduct(CamFwd, DirToMonster);
+
+		// Forward view check: entity must be in front of the camera view cone (LookAtDot > 0.35f, ~140 deg FOV)
+		if (LookAtDot > 0.35f)
+		{
+			// Line of sight raycast: ensure no wall or corridor obstacle blocks visibility
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(PlayerSightTrace), false, this);
+			QueryParams.AddIgnoredActor(NearestEntity);
+			FHitResult HitResult;
+			const bool bBlocked = GetWorld()->LineTraceSingleByChannel(HitResult, CamLoc, MonsterHead, ECC_Visibility, QueryParams);
+
+			if (!bBlocked)
+			{
+				bCanSeeMonsterInFront = true;
+
+				// User requirement: play audio when player sees the entity in front of them, regardless of distance
+				// Stinger audio cue triggers immediately when player first sees the entity in front of them
+				if (!bHasTriggeredSightAudio)
+				{
+					bHasTriggeredSightAudio = true;
+					if (SightStingerSound)
+					{
+						UGameplayStatics::PlaySound2D(this, SightStingerSound, 1.25f);
+					}
+				}
+
+				// Panic / Heartbeat: begins at 0.45 upon sighting regardless of distance (up to 45m), scaling to 1.0 close up
+				const float DistFactor = 1.0f - FMath::Clamp((Distance - 400.0f) / 4100.0f, 0.0f, 1.0f);
+				TargetPanic = FMath::Lerp(0.45f, 1.0f, DistFactor);
+
+				if (NearestEntity->CachedAIState == EBackroomsAIState::Chase)
+				{
+					TargetPanic = FMath::Max(TargetPanic, 0.85f);
+				}
+			}
+		}
+	}
+
+	bPlayerSeesEntity = bCanSeeMonsterInFront;
+
+	if (bCanSeeMonsterInFront)
+	{
+		LostSightCooldownTimer = 0.0f;
+	}
+	else
+	{
+		// Monster is behind player or behind a wall: ZERO panic audio, ZERO heartbeat
+		TargetPanic = 0.0f;
+
+		// Reset sight stinger after 4 seconds of not seeing the entity
+		LostSightCooldownTimer += DeltaTime;
+		if (LostSightCooldownTimer > 4.0f)
+		{
+			bHasTriggeredSightAudio = false;
+		}
+	}
+
+	// Smoothly interpolate panic factor
+	const float InterpSpeed = (TargetPanic > CurrentPanicFactor) ? 2.5f : 1.0f;
+	CurrentPanicFactor = FMath::FInterpTo(CurrentPanicFactor, TargetPanic, DeltaTime, InterpSpeed);
+
+	if (CurrentPanicFactor > 0.01f)
+	{
+		if (!HeartbeatAudioComponent->IsPlaying())
+		{
+			HeartbeatAudioComponent->Play();
+		}
+
+		const float TargetVol = CurrentPanicFactor * MaxHeartbeatVolume;
+		const float TargetPitch = FMath::Lerp(0.95f, 1.35f, CurrentPanicFactor);
+
+		CurrentHeartbeatVolume = FMath::FInterpTo(CurrentHeartbeatVolume, TargetVol, DeltaTime, 3.0f);
+		HeartbeatAudioComponent->SetVolumeMultiplier(CurrentHeartbeatVolume);
+		HeartbeatAudioComponent->SetPitchMultiplier(TargetPitch);
+
+		// Panicked breathing layers in during extreme proximity (> 45% panic)
+		if (PanicBreathingAudioComponent)
+		{
+			const float TargetBreathVol = FMath::Clamp((CurrentPanicFactor - 0.45f) / 0.55f, 0.0f, 1.0f) * 0.70f;
+			if (TargetBreathVol > 0.05f)
+			{
+				if (!PanicBreathingAudioComponent->IsPlaying())
+				{
+					PanicBreathingAudioComponent->Play();
+				}
+				CurrentBreathingVolume = FMath::FInterpTo(CurrentBreathingVolume, TargetBreathVol, DeltaTime, 2.0f);
+				PanicBreathingAudioComponent->SetVolumeMultiplier(CurrentBreathingVolume);
+			}
+			else if (PanicBreathingAudioComponent->IsPlaying())
+			{
+				CurrentBreathingVolume = FMath::FInterpTo(CurrentBreathingVolume, 0.0f, DeltaTime, 2.0f);
+				PanicBreathingAudioComponent->SetVolumeMultiplier(CurrentBreathingVolume);
+				if (CurrentBreathingVolume <= 0.01f)
+				{
+					PanicBreathingAudioComponent->Stop();
+				}
+			}
+		}
+
+		OnPanicFactorUpdated(CurrentPanicFactor);
+	}
+	else
+	{
+		if (HeartbeatAudioComponent->IsPlaying())
+		{
+			CurrentHeartbeatVolume = FMath::FInterpTo(CurrentHeartbeatVolume, 0.0f, DeltaTime, 2.0f);
+			HeartbeatAudioComponent->SetVolumeMultiplier(CurrentHeartbeatVolume);
+			if (CurrentHeartbeatVolume <= 0.01f)
+			{
+				HeartbeatAudioComponent->Stop();
+			}
+		}
+
+		if (PanicBreathingAudioComponent && PanicBreathingAudioComponent->IsPlaying())
+		{
+			CurrentBreathingVolume = FMath::FInterpTo(CurrentBreathingVolume, 0.0f, DeltaTime, 2.0f);
+			PanicBreathingAudioComponent->SetVolumeMultiplier(CurrentBreathingVolume);
+			if (CurrentBreathingVolume <= 0.01f)
+			{
+				PanicBreathingAudioComponent->Stop();
+			}
+		}
 	}
 }
 
@@ -567,5 +806,231 @@ void ABackroomsCharacter::TriggerFootstep()
 	UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, HitResult.ImpactPoint, Volume, Pitch);
 
 	OnFootstepPlayed(SoundToPlay, HitResult.ImpactPoint, Volume, Pitch, bIsCarpet);
+}
+
+void ABackroomsCharacter::UpdateGazeDistortion(float DeltaTime)
+{
+	if (bIsUnderAttack)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Locate nearest entity if cached pointer is invalid
+	if (!CachedNearestEntity.IsValid())
+	{
+		for (TActorIterator<ABackroomsEntity> It(World); It; ++It)
+		{
+			if (!It->IsActorBeingDestroyed())
+			{
+				CachedNearestEntity = *It;
+				break;
+			}
+		}
+	}
+
+	float TargetGlitch = 0.0f;
+
+	if (CachedNearestEntity.IsValid() && !CachedNearestEntity->IsActorBeingDestroyed())
+	{
+		const FVector CamLoc = FirstPersonCamera ? FirstPersonCamera->GetComponentLocation() : GetActorLocation();
+		const FVector CamFwd = FirstPersonCamera ? FirstPersonCamera->GetForwardVector() : GetActorForwardVector();
+		const FVector MonsterHeadLoc = CachedNearestEntity->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+		const FVector ToMonster = MonsterHeadLoc - CamLoc;
+		const float Dist = ToMonster.Size();
+
+		if (Dist < 1000.0f) // Glitch effects only occur when entity is close (<10m); leaves distant view crisp and visible
+		{
+			// Line of sight check to monster
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(GazeTrace), false, this);
+			QueryParams.AddIgnoredActor(CachedNearestEntity.Get());
+			FHitResult HitResult;
+			const bool bBlocked = World->LineTraceSingleByChannel(HitResult, CamLoc, MonsterHeadLoc, ECC_Visibility, QueryParams);
+
+			if (!bBlocked)
+			{
+				const FVector DirToMonster = ToMonster.GetSafeNormal();
+				const float LookAtDot = FVector::DotProduct(CamFwd, DirToMonster);
+
+				// Dot > 0.45 means monster is inside the camera view cone
+				if (LookAtDot > 0.45f)
+				{
+					// Direct gaze factor (0 at 0.45, 1.0 at 0.95+ looking right at the entity)
+					const float CenterFactor = FMath::Clamp((LookAtDot - 0.45f) / 0.50f, 0.0f, 1.0f);
+					// Distance factor: 1.0 at < 2.5m, fading out at 10m
+					const float DistFactor = 1.0f - FMath::Clamp((Dist - 250.0f) / 750.0f, 0.0f, 1.0f);
+
+					TargetGlitch = CenterFactor * DistFactor;
+				}
+			}
+		}
+	}
+
+	// Smoothly interpolate current gaze glitch factor
+	CurrentGazeGlitchFactor = FMath::FInterpTo(CurrentGazeGlitchFactor, TargetGlitch, DeltaTime, (TargetGlitch > CurrentGazeGlitchFactor) ? 4.0f : 2.5f);
+
+	// Modulate FirstPersonCamera PostProcessSettings
+	if (FirstPersonCamera)
+	{
+		FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+
+		if (CurrentGazeGlitchFactor > 0.01f)
+		{
+			// Chromatic aberration (SceneFringe) violently tears RGB channels
+			PP.bOverride_SceneFringeIntensity = true;
+			PP.SceneFringeIntensity = CurrentGazeGlitchFactor * 5.0f;
+
+			// Creeping dark shadow vignette / tunnel vision
+			PP.bOverride_VignetteIntensity = true;
+			PP.VignetteIntensity = FMath::Clamp(0.35f + CurrentGazeGlitchFactor * 0.65f, 0.0f, 1.0f);
+
+			// Grain / analog VHS noise
+			PP.bOverride_FilmGrainIntensity = true;
+			PP.FilmGrainIntensity = CurrentGazeGlitchFactor * 0.95f;
+
+			// Desaturation to sickly cold horror tone
+			PP.bOverride_ColorSaturation = true;
+			const float SatVal = FMath::Lerp(1.0f, 0.45f, CurrentGazeGlitchFactor);
+			PP.ColorSaturation = FVector4(SatVal, SatVal, SatVal, 1.0f);
+
+			// Procedural dread camera tremor
+			GazeTremorTime += DeltaTime * 35.0f;
+			const float ShakeAmp = CurrentGazeGlitchFactor * 1.8f;
+			const FVector TremorOffset(
+				FMath::Sin(GazeTremorTime * 1.2f) * ShakeAmp * 0.5f,
+				FMath::Cos(GazeTremorTime * 1.5f) * ShakeAmp,
+				FMath::Sin(GazeTremorTime * 0.9f) * ShakeAmp
+			);
+			FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset + TremorOffset);
+
+			// Flashlight erratic stutter when aimed directly at monster
+			if (FlashlightComponent && FlashlightComponent->IsVisible())
+			{
+				const float Flicker = FMath::RandRange(1.0f - CurrentGazeGlitchFactor * 0.5f, 1.0f);
+				FlashlightComponent->SetIntensity(FlashlightBaseIntensity * Flicker);
+			}
+		}
+		else
+		{
+			// Restore normal camera state
+			PP.bOverride_SceneFringeIntensity = false;
+			PP.SceneFringeIntensity = 0.0f;
+
+			PP.bOverride_VignetteIntensity = true;
+			PP.VignetteIntensity = 0.35f;
+
+			PP.bOverride_FilmGrainIntensity = false;
+			PP.FilmGrainIntensity = 0.0f;
+
+			PP.bOverride_ColorSaturation = false;
+			PP.ColorSaturation = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+
+			FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset);
+
+			if (FlashlightComponent && FlashlightComponent->IsVisible())
+			{
+				FlashlightComponent->SetIntensity(FlashlightBaseIntensity);
+			}
+		}
+	}
+}
+
+void ABackroomsCharacter::TriggerJumpscareCaught(ABackroomsEntity* Attacker)
+{
+	if (bIsUnderAttack)
+	{
+		return;
+	}
+
+	bIsUnderAttack = true;
+
+	// Disable player input during jumpscare
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC)
+	{
+		DisableInput(PC);
+	}
+
+	// Stop character locomotion
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->StopMovementImmediately();
+	}
+
+	// Extreme visual trauma surge
+	if (FirstPersonCamera)
+	{
+		FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+		PP.bOverride_SceneFringeIntensity = true;
+		PP.SceneFringeIntensity = 5.0f;
+		PP.bOverride_VignetteIntensity = true;
+		PP.VignetteIntensity = 1.0f;
+		PP.bOverride_ColorGain = true;
+		PP.ColorGain = FVector4(1.6f, 0.3f, 0.3f, 1.0f); // Bloody red flash
+	}
+
+	// Camera Fade to black
+	if (PC && PC->PlayerCameraManager)
+	{
+		PC->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, 0.45f, FColor::Black, true, true);
+	}
+
+	OnJumpscareCaught(Attacker);
+
+	// Wakeup sequence after 2.0s blackout
+	if (UWorld* World = GetWorld())
+	{
+		FTimerHandle WakeupTimerHandle;
+		World->GetTimerManager().SetTimer(WakeupTimerHandle, [this, PC]()
+		{
+			// Respawn player at initial level start location
+			SetActorLocation(RespawnLocation);
+			if (PC)
+			{
+				PC->SetControlRotation(RespawnRotation);
+			}
+
+			// Clear damage post process
+			if (FirstPersonCamera)
+			{
+				FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+				PP.bOverride_SceneFringeIntensity = false;
+				PP.SceneFringeIntensity = 0.0f;
+				PP.bOverride_VignetteIntensity = true;
+				PP.VignetteIntensity = 0.35f;
+				PP.bOverride_ColorGain = false;
+				PP.ColorGain = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				PP.bOverride_ColorSaturation = false;
+				PP.ColorSaturation = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+				PP.bOverride_FilmGrainIntensity = false;
+				PP.FilmGrainIntensity = 0.0f;
+				FirstPersonCamera->SetRelativeLocation(BaseHeadRelativeLocation + CurrentCameraOffset);
+			}
+
+			// Fade back in from black
+			if (PC && PC->PlayerCameraManager)
+			{
+				PC->PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 1.4f, FColor::Black, false, false);
+			}
+
+			// Re-enable player input
+			if (PC)
+			{
+				EnableInput(PC);
+			}
+
+			// Reset panic and state
+			CurrentPanicFactor = 0.0f;
+			CurrentGazeGlitchFactor = 0.0f;
+			bIsUnderAttack = false;
+
+			UE_LOG(LogTemp, Warning, TEXT("[ABackroomsCharacter] Player woke up at level spawn after jumpscare encounter."));
+		}, 2.0f, false);
+	}
 }
 
